@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        hideSystemNavigation()
         setContentView(R.layout.activity_main)
         val adapter = ExoDemoAdapter(this, ExoManager(this, this))
         val viewPager = findViewById<ViewPager2>(R.id.viewPager).apply {
@@ -58,6 +59,15 @@ class MainActivity : AppCompatActivity() {
             val videoUri = adapter.getVideoUri(viewPager.currentItem)
             val videoModel = VideoModel(videoUri?.toString() ?: "")
             SinglePlayActivity.start(this@MainActivity, videoModel)
+        }
+    }
+
+    /**
+     * 隐藏系统底下导航栏
+     * **/
+    private fun hideSystemNavigation() {
+        window.decorView.apply {
+            systemUiVisibility = View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
         }
     }
 }

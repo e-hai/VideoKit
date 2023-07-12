@@ -45,10 +45,6 @@ object MainRepository {
                 "视频B"
             ),
             VideoModel(
-                "http://face-model-osszh.startech.ltd/new_result/e8cdab05f246442b8752e1ae22e2667c.mp4",
-                "视频C"
-            ),
-            VideoModel(
                 "https://face-model-osszh.startech.ltd/basis-admin/d807182c7ac246d69ed39ccb1e17f122.mp4",
                 "视频D"
             ),

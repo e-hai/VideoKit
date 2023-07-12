@@ -8,6 +8,8 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout.ResizeMode
 import com.google.android.exoplayer2.ui.StyledPlayerView
 
 /**
@@ -42,6 +44,7 @@ class ExoCoverPlayerView @JvmOverloads constructor(
                 }, 1000)
             }
         }
+        resizeMode=AspectRatioFrameLayout.RESIZE_MODE_FIT
     }
 
 
