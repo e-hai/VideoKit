@@ -9,7 +9,7 @@ abstract class ExoSimpleAdapter<VH : ExoViewHolder>(
 ) : RecyclerView.Adapter<VH>(), BaseAdapter {
 
     private var currentPosition = -1
-    private lateinit var recyclerView: RecyclerView
+    private var recyclerView: RecyclerView? = null
 
 
     override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
@@ -19,10 +19,10 @@ abstract class ExoSimpleAdapter<VH : ExoViewHolder>(
 
     override fun switchVideo(position: Int) {
         if (currentPosition == position) return
-        (recyclerView.findViewHolderForAdapterPosition(position) as ExoViewHolder).apply {
-            getVideoMediaSource(position)?.let {
-                videoManager.playVideoFromMediaSource(getPlayerView(), it)
-            }
+        (recyclerView?.findViewHolderForAdapterPosition(position))?.let {
+            val exoViewHolder = it as ExoViewHolder
+            val mediaSource = getVideoMediaSource(position) ?: return
+            videoManager.playVideoFromMediaSource(exoViewHolder.getPlayerView(), mediaSource)
         }
     }
 

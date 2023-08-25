@@ -1,5 +1,6 @@
 package com.an.video.original
 
+import android.net.Uri
 import androidx.recyclerview.widget.RecyclerView
 import com.an.video.BaseAdapter
 
@@ -9,7 +10,7 @@ abstract class VideoViewSimpleAdapter<VH : VideoViewHolder>(
 ) : RecyclerView.Adapter<VH>(), BaseAdapter {
 
     private var currentPosition = -1
-    private lateinit var recyclerView: RecyclerView
+    private var recyclerView: RecyclerView? = null
 
 
     override fun onAttachedToRecyclerView(recyclerView: RecyclerView) {
@@ -19,11 +20,12 @@ abstract class VideoViewSimpleAdapter<VH : VideoViewHolder>(
 
     override fun switchVideo(position: Int) {
         if (currentPosition == position) return
-        (recyclerView.findViewHolderForAdapterPosition(position) as VideoViewHolder).apply {
-            videoManager.playVideo(
-                getPlayerView(),
-                getVideoUri(position)
-            )
+        (recyclerView?.findViewHolderForAdapterPosition(position))?.let {
+            val exoViewHolder = it as VideoViewHolder
+            val mediaSource = getVideoUri(position) ?: return
+            videoManager.playVideo(exoViewHolder.getPlayerView(), mediaSource)
         }
     }
+
+    abstract fun getVideoUri(position: Int): Uri?
 }

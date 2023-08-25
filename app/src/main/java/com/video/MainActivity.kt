@@ -56,9 +56,6 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.nextView).setOnClickListener {
-            val videoUri = adapter.getVideoUri(viewPager.currentItem)
-            val videoModel = VideoModel(videoUri?.toString() ?: "")
-            SinglePlayActivity.start(this@MainActivity, videoModel)
         }
     }
 
@@ -96,10 +93,6 @@ class ExoDemoAdapter(context: Context, videoManager: ExoManager) :
 
     override fun getVideoMediaSource(position: Int): MediaSource? {
         return getItem(position)?.source
-    }
-
-    override fun getVideoUri(position: Int): Uri? {
-        return getItem(position)?.videoUri
     }
 
     companion object {
@@ -179,6 +172,7 @@ class OriginalDemoAdapter(videoManager: VideoViewManager) :
             init {
                 titleView = itemView.findViewById(R.id.titleView)
             }
+
 
             override fun getPlayerView(): VideoView {
                 return itemView.findViewById(R.id.videoView)
