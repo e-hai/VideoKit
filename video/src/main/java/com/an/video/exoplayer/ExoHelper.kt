@@ -34,8 +34,7 @@ object MediaCacheFactory {
             val downDirectory = File(ctx.cacheDir, "videos")
             val cache = SimpleCache(
                 downDirectory,
-                LeastRecentlyUsedCacheEvictor(1024 * 1024 * 512),
-                null
+                LeastRecentlyUsedCacheEvictor(1024 * 1024 * 512)
             )
             cacheFactory = CacheDataSource.Factory().setCache(cache)
                 .setCacheReadDataSourceFactory(
