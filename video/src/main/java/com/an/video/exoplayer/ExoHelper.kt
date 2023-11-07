@@ -15,6 +15,14 @@ import com.google.android.exoplayer2.upstream.cache.SimpleCache
 import java.io.File
 
 object ExoHelper {
+    fun createRawMediaSource(context: Context, uri: Uri): MediaSource {
+        val dataSourceFactory = DefaultDataSource.Factory(context.applicationContext)
+        val mediaItem = MediaItem.fromUri(uri)
+        return ProgressiveMediaSource
+            .Factory(dataSourceFactory)
+            .createMediaSource(mediaItem)
+    }
+
     fun createMediaSource(context: Context, uri: Uri): MediaSource {
         val dataSourceFactory = MediaCacheFactory.getCacheFactory(context.applicationContext)
         val mediaItem = MediaItem.fromUri(uri)

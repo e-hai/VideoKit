@@ -56,6 +56,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         findViewById<Button>(R.id.nextView).setOnClickListener {
+            SinglePlayActivity.start(this)
         }
     }
 

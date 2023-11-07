@@ -99,7 +99,7 @@ class ExoManager(
             e.printStackTrace()
         }
         val videoUri = rawResourceDataSource.uri ?: return
-        val mediaSource = ExoHelper.createMediaSource(context, videoUri)
+        val mediaSource = ExoHelper.createRawMediaSource(context, videoUri)
         playVideoFromMediaSource(playerView, mediaSource)
     }
 
