@@ -11,22 +11,20 @@ import androidx.lifecycle.LifecycleOwner
 import com.google.android.exoplayer2.ExoPlayer
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.Player
+import com.google.android.exoplayer2.database.DatabaseProvider
 import com.google.android.exoplayer2.source.MediaSource
 import com.google.android.exoplayer2.source.ProgressiveMediaSource
 import com.google.android.exoplayer2.ui.StyledPlayerView
+import com.google.android.exoplayer2.upstream.DataSource
 import com.google.android.exoplayer2.upstream.DataSpec
 import com.google.android.exoplayer2.upstream.DefaultDataSource
+import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
 import com.google.android.exoplayer2.upstream.RawResourceDataSource
+import com.google.android.exoplayer2.upstream.cache.CacheDataSource
+import com.google.android.exoplayer2.upstream.cache.LeastRecentlyUsedCacheEvictor
+import com.google.android.exoplayer2.upstream.cache.SimpleCache
+import java.io.File
 
-object ExoHelper {
-    fun createMediaSource(context: Context, uri: Uri): MediaSource {
-        val dataSourceFactory = DefaultDataSource.Factory(context.applicationContext)
-        val mediaItem = MediaItem.fromUri(uri)
-        return ProgressiveMediaSource
-            .Factory(dataSourceFactory)
-            .createMediaSource(mediaItem)
-    }
-}
 
 class ExoManager(
     lifecycleOwner: LifecycleOwner,
@@ -60,16 +58,19 @@ class ExoManager(
                         player?.prepare()
                     }
                 }
+
                 Lifecycle.Event.ON_RESUME -> {
                     Log.d(TAG, "ON_RESUME")
                     videoView?.onResume()
                     player?.playWhenReady = true
                 }
+
                 Lifecycle.Event.ON_PAUSE -> {
                     Log.d(TAG, "ON_PAUSE")
                     videoView?.onPause()
                     player?.playWhenReady = false
                 }
+
                 Lifecycle.Event.ON_STOP -> {
                     Log.d(TAG, "ON_STOP")
                     videoView?.player = null
@@ -77,6 +78,7 @@ class ExoManager(
                     player?.release()
                     player = null
                 }
+
                 else -> {
                 }
             }
