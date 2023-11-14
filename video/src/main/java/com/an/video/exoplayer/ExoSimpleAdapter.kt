@@ -1,8 +1,8 @@
 package com.an.video.exoplayer
 
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.recyclerview.widget.RecyclerView
 import com.an.video.BaseAdapter
-import com.google.android.exoplayer2.source.MediaSource
 
 abstract class ExoSimpleAdapter<VH : ExoViewHolder>(
     private val videoManager: ExoManager

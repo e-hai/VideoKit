@@ -1,10 +1,9 @@
 package com.an.video.exoplayer
 
-import android.util.Log
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.paging.PagingDataAdapter
 import androidx.recyclerview.widget.*
 import com.an.video.BaseAdapter
-import com.google.android.exoplayer2.source.MediaSource
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 

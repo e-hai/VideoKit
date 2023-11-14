@@ -3,46 +3,47 @@ package com.an.video.exoplayer
 import android.content.Context
 import android.graphics.Color
 import android.net.Uri
-import android.util.Log
 import androidx.annotation.RawRes
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.database.DatabaseProvider
-import com.google.android.exoplayer2.source.MediaSource
-import com.google.android.exoplayer2.source.ProgressiveMediaSource
-import com.google.android.exoplayer2.ui.StyledPlayerView
-import com.google.android.exoplayer2.upstream.DataSource
-import com.google.android.exoplayer2.upstream.DataSpec
-import com.google.android.exoplayer2.upstream.DefaultDataSource
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
-import com.google.android.exoplayer2.upstream.RawResourceDataSource
-import com.google.android.exoplayer2.upstream.cache.CacheDataSource
-import com.google.android.exoplayer2.upstream.cache.LeastRecentlyUsedCacheEvictor
-import com.google.android.exoplayer2.upstream.cache.SimpleCache
-import java.io.File
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.LoadControl
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.upstream.DefaultAllocator
+import androidx.media3.ui.PlayerView
 
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class ExoManager(
     lifecycleOwner: LifecycleOwner,
     context: Context,
-    private val loop: Boolean = true
+    private val loop: Boolean = true,
+    private val listener: Player.Listener? = null
 ) {
 
-    private var videoView: StyledPlayerView? = null
+    private var videoView: PlayerView? = null
     private var mediaSource: MediaSource? = null
     private var player: ExoPlayer? = null
+    private val loadControl: LoadControl = DefaultLoadControl.Builder()
+        .setBufferDurationsMs(
+            DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
+            DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+            0,
+            DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS
+        )
+        .setAllocator(DefaultAllocator(true, 16))
+        .build()
 
     init {
         val lifecycleObserver = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
-                    Log.d(TAG, "ON_START")
                     player = ExoPlayer
                         .Builder(context)
+                        .setLoadControl(loadControl)
                         .build()
                         .apply {
                             playWhenReady = true
@@ -57,22 +58,22 @@ class ExoManager(
                         player?.setMediaSource(this)
                         player?.prepare()
                     }
+                    listener?.let {
+                        player?.addListener(it)
+                    }
                 }
 
                 Lifecycle.Event.ON_RESUME -> {
-                    Log.d(TAG, "ON_RESUME")
                     videoView?.onResume()
                     player?.playWhenReady = true
                 }
 
                 Lifecycle.Event.ON_PAUSE -> {
-                    Log.d(TAG, "ON_PAUSE")
                     videoView?.onPause()
                     player?.playWhenReady = false
                 }
 
                 Lifecycle.Event.ON_STOP -> {
-                    Log.d(TAG, "ON_STOP")
                     videoView?.player = null
                     player?.stop()
                     player?.release()
@@ -87,24 +88,16 @@ class ExoManager(
     }
 
     fun playVideoFromRaw(
-        playerView: StyledPlayerView,
+        playerView: PlayerView,
         @RawRes videoRaw: Int
     ) {
         val context = playerView.context
-        val rawResourceDataSource = RawResourceDataSource(context)
-        val dataSpec = DataSpec(RawResourceDataSource.buildRawResourceUri(videoRaw))
-        try {
-            rawResourceDataSource.open(dataSpec)
-        } catch (e: RawResourceDataSource.RawResourceDataSourceException) {
-            e.printStackTrace()
-        }
-        val videoUri = rawResourceDataSource.uri ?: return
-        val mediaSource = ExoHelper.createRawMediaSource(context, videoUri)
+        val mediaSource = ExoHelper.createRawMediaSource(context, videoRaw)
         playVideoFromMediaSource(playerView, mediaSource)
     }
 
     fun playVideoFromUrl(
-        playerView: StyledPlayerView,
+        playerView: PlayerView,
         videoUrl: String
     ) {
         val context = playerView.context
@@ -114,7 +107,7 @@ class ExoManager(
     }
 
     fun playVideoFromMediaSource(
-        newPlayerView: StyledPlayerView,
+        newPlayerView: PlayerView,
         newMediaSource: MediaSource
     ) {
         newPlayerView.useController = false

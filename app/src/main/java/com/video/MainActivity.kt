@@ -11,14 +11,15 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.VideoView
 import androidx.activity.viewModels
-import androidx.core.net.toFile
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.recyclerview.widget.DiffUtil
 import androidx.viewpager2.widget.ViewPager2
 import coil.ImageLoader
 import coil.decode.VideoFrameDecoder
-import coil.load
 import com.an.video.exoplayer.ExoCoverPlayerView
 import com.an.video.exoplayer.ExoManager
 import com.an.video.exoplayer.ExoPagingDataAdapter
@@ -27,8 +28,6 @@ import com.an.video.original.VideoViewHolder
 import com.an.video.original.VideoViewManager
 import com.an.video.original.VideoViewPagingAdapter
 import com.an.video.original.VideoViewSimpleAdapter
-import com.google.android.exoplayer2.source.MediaSource
-import com.google.android.exoplayer2.ui.StyledPlayerView
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
@@ -39,7 +38,12 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         hideSystemNavigation()
         setContentView(R.layout.activity_main)
-        val adapter = ExoDemoAdapter(this, ExoManager(this, this))
+        val adapter = ExoDemoAdapter(this, ExoManager(this, this, listener = object :
+            Player.Listener {
+            override fun onPlayerError(error: PlaybackException) {
+                error.printStackTrace()
+            }
+        }))
         val viewPager = findViewById<ViewPager2>(R.id.viewPager).apply {
             this.adapter = adapter
             registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
@@ -89,7 +93,7 @@ class ExoDemoAdapter(context: Context, videoManager: ExoManager) :
     override fun onBindViewHolder(holder: ExoVH, position: Int) {
         val item = getItem(position) ?: return
         holder.titleView.text = item.title
-        holder.getPlayerView().getCoverView().load(item.videoUri, imageLoader)
+//        holder.getPlayerView().getCoverView().load(item.videoUri, imageLoader)
     }
 
     override fun getVideoMediaSource(position: Int): MediaSource? {

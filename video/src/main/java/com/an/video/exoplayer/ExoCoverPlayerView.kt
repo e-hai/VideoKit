@@ -7,19 +7,19 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout
-import com.google.android.exoplayer2.ui.AspectRatioFrameLayout.ResizeMode
-import com.google.android.exoplayer2.ui.StyledPlayerView
+import androidx.media3.common.Player
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
 
 /**
  * 带封面的播放器
  * **/
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class ExoCoverPlayerView @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0
-) : StyledPlayerView(context, attrs, defStyleAttr) {
+) : PlayerView(context, attrs, defStyleAttr) {
 
     private val coverView: ImageView
 
@@ -44,7 +44,7 @@ class ExoCoverPlayerView @JvmOverloads constructor(
                 }, 1000)
             }
         }
-        resizeMode=AspectRatioFrameLayout.RESIZE_MODE_FIT
+        resizeMode= AspectRatioFrameLayout.RESIZE_MODE_FIT
     }
 
 

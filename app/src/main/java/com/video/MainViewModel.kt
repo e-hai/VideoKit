@@ -6,10 +6,10 @@ import androidx.core.net.toUri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asLiveData
+import androidx.media3.exoplayer.source.MediaSource
 import androidx.paging.PagingData
 import androidx.paging.map
 import com.an.video.exoplayer.ExoHelper
-import com.google.android.exoplayer2.source.MediaSource
 import kotlinx.coroutines.flow.map
 
 class MainViewModel(private val context: Application) : AndroidViewModel(context) {
