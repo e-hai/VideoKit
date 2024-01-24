@@ -32,7 +32,6 @@ class ExoCoverPlayerView @JvmOverloads constructor(
         )
         params.gravity = Gravity.CENTER
         coverView = ImageView(context)
-        coverView.setBackgroundColor(Color.BLACK)
         coverView.adjustViewBounds = true
         coverView.scaleType = ImageView.ScaleType.FIT_XY
         addView(coverView, params)
