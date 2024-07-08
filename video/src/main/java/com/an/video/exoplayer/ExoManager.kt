@@ -1,8 +1,14 @@
 package com.an.video.exoplayer
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Color
 import android.net.Uri
+import android.opengl.GLSurfaceView
+import android.os.Build
+import android.util.Log
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.annotation.RawRes
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -16,17 +22,18 @@ import androidx.media3.exoplayer.upstream.DefaultAllocator
 import androidx.media3.ui.PlayerView
 
 
-@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class ExoManager(
     lifecycleOwner: LifecycleOwner,
-    context: Context,
+    private val context: Context,
     private val loop: Boolean = true,
     private val listener: Player.Listener? = null
 ) {
 
     private var videoView: PlayerView? = null
-    private var mediaSource: MediaSource? = null
     private var player: ExoPlayer? = null
+    private var lastMediaSource: MediaSource? = null
+
+    @SuppressLint("UnsafeOptInUsageError")
     private val loadControl: LoadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(
             DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,
@@ -40,51 +47,86 @@ class ExoManager(
     init {
         val lifecycleObserver = LifecycleEventObserver { _, event ->
             when (event) {
+                Lifecycle.Event.ON_CREATE->{
+                    Log.d(TAG, "ON_CREATE")
+                }
                 Lifecycle.Event.ON_START -> {
-                    player = ExoPlayer
-                        .Builder(context)
-                        .setLoadControl(loadControl)
-                        .build()
-                        .apply {
-                            playWhenReady = true
-                            repeatMode = if (loop) {
-                                Player.REPEAT_MODE_ONE
-                            } else {
-                                Player.REPEAT_MODE_OFF
-                            }
-                        }
-                    videoView?.player = player
-                    mediaSource?.apply {
-                        player?.setMediaSource(this)
-                        player?.prepare()
-                    }
-                    listener?.let {
-                        player?.addListener(it)
+                    Log.d(TAG, "ON_START ")
+                    if (Build.VERSION.SDK_INT > 23) {
+                        initializePlayer()
+                        videoView?.onResume()
                     }
                 }
 
                 Lifecycle.Event.ON_RESUME -> {
-                    videoView?.onResume()
-                    player?.playWhenReady = true
+                    Log.d(TAG, "ON_RESUME  ")
+                    if (Build.VERSION.SDK_INT <= 23 || player == null) {
+                        initializePlayer()
+                        videoView?.onResume()
+                    }
                 }
 
                 Lifecycle.Event.ON_PAUSE -> {
-                    videoView?.onPause()
-                    player?.playWhenReady = false
+                    Log.d(TAG, "ON_PAUSE")
+                    if (Build.VERSION.SDK_INT <= 23) {
+                        videoView?.onPause()
+                        releasePlayer()
+                    }
                 }
 
                 Lifecycle.Event.ON_STOP -> {
-                    videoView?.player = null
-                    player?.stop()
-                    player?.release()
-                    player = null
+                    Log.d(TAG, "ON_STOP")
+                    if (Build.VERSION.SDK_INT > 23) {
+                        videoView?.onPause()
+                        releasePlayer();
+                    }
                 }
-
+                Lifecycle.Event.ON_DESTROY->{
+                    Log.d(TAG, "ON_DESTROY")
+                }
                 else -> {
+                    Log.d(TAG, "ON_ else")
                 }
             }
         }
         lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
+    }
+
+    @SuppressLint("UnsafeOptInUsageError")
+    private fun initializePlayer() {
+        Log.d(TAG, "initializePlayer")
+
+        val newPlayer = ExoPlayer
+            .Builder(context)
+            .setLoadControl(loadControl)
+            .build()
+            .apply {
+                repeatMode = if (loop) {
+                    Player.REPEAT_MODE_ONE
+                } else {
+                    Player.REPEAT_MODE_OFF
+                }
+                playWhenReady = true
+                seekTo(1)
+            }
+        lastMediaSource?.apply {
+            newPlayer.setMediaSource(this)
+            newPlayer.prepare()
+        }
+        listener?.let {
+            newPlayer.addListener(it)
+        }
+        videoView?.player = newPlayer
+        player = newPlayer
+    }
+
+    private fun releasePlayer() {
+        Log.d(TAG, "releasePlayer")
+        player?.apply {
+            release()
+            player = null
+            videoView?.player = null
+        }
     }
 
     fun playVideoFromRaw(
@@ -92,8 +134,8 @@ class ExoManager(
         @RawRes videoRaw: Int
     ) {
         val context = playerView.context
-        val mediaSource = ExoHelper.createRawMediaSource(context, videoRaw)
-        playVideoFromMediaSource(playerView, mediaSource)
+        val lastMediaSource = ExoHelper.createRawMediaSource(context, videoRaw)
+        playVideoFromMediaSource(playerView, lastMediaSource)
     }
 
     fun playVideoFromUrl(
@@ -102,22 +144,23 @@ class ExoManager(
     ) {
         val context = playerView.context
         val videoUri = Uri.parse(videoUrl)
-        val mediaSource = ExoHelper.createMediaSource(context, videoUri)
-        playVideoFromMediaSource(playerView, mediaSource)
+        val lastMediaSource = ExoHelper.createMediaSource(context, videoUri)
+        playVideoFromMediaSource(playerView, lastMediaSource)
     }
 
+    @SuppressLint("UnsafeOptInUsageError")
     fun playVideoFromMediaSource(
         newPlayerView: PlayerView,
         newMediaSource: MediaSource
     ) {
-        newPlayerView.useController = false
-        newPlayerView.setShutterBackgroundColor(Color.TRANSPARENT)
-        videoView?.player = null
-        newPlayerView.player = player?.apply {
-            setMediaSource(newMediaSource)
-            prepare()
+        Log.d(TAG, "playVideo")
+        player?.let {
+            it.setMediaSource(newMediaSource)
+            it.prepare()
+            PlayerView.switchTargetView(it, videoView, newPlayerView)
         }
-        mediaSource = newMediaSource
+
+        lastMediaSource = newMediaSource
         videoView = newPlayerView
     }
 
