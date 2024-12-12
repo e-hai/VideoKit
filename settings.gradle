@@ -12,6 +12,6 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "AnVideo"
+rootProject.name = "VideoKit"
 include ':app'
 include ':video'

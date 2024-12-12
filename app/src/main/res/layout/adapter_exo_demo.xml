@@ -10,14 +10,15 @@
         android:id="@+id/videoView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        app:animation_enabled="true"
+        app:keep_content_on_player_reset="true"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintLeft_toLeftOf="parent"
         app:layout_constraintRight_toRightOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:animation_enabled="true"
-        app:keep_content_on_player_reset="true"
-        app:resize_mode="zoom"
-        app:surface_type="texture_view" />
+        app:resize_mode="fit"
+        app:surface_type="texture_view"
+        app:use_controller="false" />
 
     <TextView
         android:id="@+id/titleView"

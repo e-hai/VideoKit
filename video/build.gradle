@@ -4,8 +4,8 @@ plugins {
 }
 
 android {
-    namespace 'com.an.video'
-    compileSdk 33
+    namespace 'com.kit.video'
+    compileSdk 35
 
     defaultConfig {
         minSdk 21
@@ -20,47 +20,46 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
 }
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.10.1'
-    api "androidx.recyclerview:recyclerview:1.3.0"
-    api "androidx.paging:paging-runtime-ktx:3.1.1"
+    implementation "androidx.recyclerview:recyclerview:1.3.0"
+    implementation "androidx.paging:paging-runtime-ktx:3.1.1"
 
-    def media3_version = "1.1.0"
-
-    // For media playback using ExoPlayer
+    def media3_version = "1.5.0"
+    // 使用 ExoPlayer 进行媒体播放
     implementation "androidx.media3:media3-exoplayer:$media3_version"
-
-    // For loading data using the OkHttp network stack
+    // 使用 OkHttp 网络栈加载数据
     implementation "androidx.media3:media3-datasource-okhttp:$media3_version"
-
-    // For building media playback UIs
+    // 构建媒体播放界面
     implementation "androidx.media3:media3-ui:$media3_version"
-   
-    // For exposing and controlling media sessions
+    // 暴露和控制媒体会话
     implementation "androidx.media3:media3-session:$media3_version"
-
-    // For extracting data from media containers
+    // 从媒体容器中提取数据
     implementation "androidx.media3:media3-extractor:$media3_version"
-
-    // For scheduling background operations using Jetpack Work's WorkManager with ExoPlayer
+    // 使用 Jetpack WorkManager 的 WorkManager 调度后台操作
     implementation "androidx.media3:media3-exoplayer-workmanager:$media3_version"
-
-    // For transforming media files
+    // 转换媒体文件
     implementation "androidx.media3:media3-transformer:$media3_version"
-
-    // Utilities for testing media components (including ExoPlayer components)
-    implementation "androidx.media3:media3-test-utils:$media3_version"
-    // Utilities for testing media components (including ExoPlayer components) via Robolectric
-    implementation "androidx.media3:media3-test-utils-robolectric:$media3_version"
-
-    // Common functionality for media database components
+    // 测试媒体组件的工具（包括 ExoPlayer 组件）
+//    implementation "androidx.media3:media3-test-utils:$media3_version"
+    // 使用 Robolectric 测试媒体组件的工具
+//    implementation "androidx.media3:media3-test-utils-robolectric:$media3_version"
+    // 媒体数据库组件的通用功能
     implementation "androidx.media3:media3-database:$media3_version"
-    // Common functionality for media decoders
+    // 媒体解码器的通用功能
     implementation "androidx.media3:media3-decoder:$media3_version"
-    // Common functionality for loading data
+    // 加载数据的通用功能
     implementation "androidx.media3:media3-datasource:$media3_version"
-    // Common functionality used across multiple media libraries
+    // 多个媒体库中通用的功能
     implementation "androidx.media3:media3-common:$media3_version"
 }
