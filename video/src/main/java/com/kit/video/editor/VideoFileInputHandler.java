@@ -17,7 +17,7 @@ class VideoFileInputHandler implements InputHandler {
     private boolean endOfStream;
     private final String inputPath;
 
-    public VideoFileInputHandler(String inputPath){
+    public VideoFileInputHandler(String inputPath) {
         this.inputPath = inputPath;
     }
 
@@ -47,7 +47,7 @@ class VideoFileInputHandler implements InputHandler {
 
     @Override
     public FrameData getData() {
-        // 如果已经到达流的末尾，返回 null
+        // 如果已经到达流的末尾，返回 结束帧
         if (endOfStream) return null;
 
         // 获取解码器的输入缓冲区索引

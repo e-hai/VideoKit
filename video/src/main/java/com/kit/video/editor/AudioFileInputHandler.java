@@ -47,7 +47,8 @@ class AudioFileInputHandler implements InputHandler {
 
     @Override
     public FrameData getData() {
-        if (endOfStream) return null;
+        // 如果已经到达流的末尾，返回 结束帧
+        if (endOfStream) return new FrameData(true);
 
         int inIndex = decoder.dequeueInputBuffer(10000);
         if (inIndex >= 0) {
