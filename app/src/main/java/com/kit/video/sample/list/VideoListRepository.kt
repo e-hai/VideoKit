@@ -1,4 +1,4 @@
-package com.kit.video.sample
+package com.kit.video.sample.list
 
 import androidx.paging.*
 import kotlinx.coroutines.flow.Flow

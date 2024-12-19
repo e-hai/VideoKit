@@ -1,9 +1,10 @@
-package com.kit.video.editor;
+package com.kit.video.generator.base;
+
 
 /**
  * 输出接口
  */
-interface OutputHandler {
+public interface OutputHandler {
     boolean initialize();
 
     void writeVideoFrame(FrameData frame);

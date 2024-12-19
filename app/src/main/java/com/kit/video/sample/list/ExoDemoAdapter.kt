@@ -1,4 +1,4 @@
-package com.kit.video.sample
+package com.kit.video.sample.list
 
 import android.content.Context
 import android.util.Log
@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.DiffUtil
 import com.kit.video.list.exoplayer.ExoManager
 import com.kit.video.list.exoplayer.ExoPagingDataAdapter
 import com.kit.video.list.exoplayer.ExoViewHolder
+import com.kit.video.sample.MainActivity
 import com.kit.video.smaple.R
 
 
@@ -28,7 +29,6 @@ class ExoDemoAdapter(context: Context, videoManager: ExoManager) :
     override fun onBindViewHolder(holder: ExoVH, position: Int) {
         val item = getItem(position) ?: return
         holder.titleView.text = item.title
-        Log.d(MainActivity.TAG, "onBindViewHolder= $position ")
 
     }
 

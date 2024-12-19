@@ -1,12 +1,13 @@
-package com.kit.video.editor;
+package com.kit.video.generator.input;
 
 import android.opengl.EGLContext;
 import android.opengl.GLES20;
-import android.opengl.GLES31;
 import android.view.Surface;
 
 import androidx.annotation.WorkerThread;
 
+import com.kit.video.generator.base.FrameData;
+import com.kit.video.generator.base.InputHandler;
 import com.kit.video.glutil.EglSurface;
 import com.kit.video.glutil.EglWrapper;
 import com.kit.video.glutil.TextureRenderer;
@@ -14,7 +15,7 @@ import com.kit.video.glutil.TextureRenderer;
 /**
  * 摄像头输入处理（OpenGL纹理数据）
  */
-class CameraInputHandler implements InputHandler {
+public class CameraInputHandler implements InputHandler {
 
     private EGLContext parentContext;
     private Surface outputSurface;
@@ -29,6 +30,7 @@ class CameraInputHandler implements InputHandler {
     public void setEglContext(EGLContext parentContext, Surface outputSurface) {
         this.parentContext = parentContext;
         this.outputSurface = outputSurface;
+
     }
 
 

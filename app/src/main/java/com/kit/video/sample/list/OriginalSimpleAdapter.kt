@@ -1,4 +1,4 @@
-package com.kit.video.sample
+package com.kit.video.sample.list
 
 import android.net.Uri
 import android.view.LayoutInflater

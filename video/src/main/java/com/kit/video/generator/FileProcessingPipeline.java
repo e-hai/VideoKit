@@ -1,9 +1,15 @@
-package com.kit.video.editor;
+package com.kit.video.generator;
 
 import android.media.MediaMetadataRetriever;
 import android.util.Log;
 
-import java.io.IOException;
+import com.kit.video.generator.base.FrameData;
+import com.kit.video.generator.base.InputHandler;
+import com.kit.video.generator.base.OutputHandler;
+import com.kit.video.generator.input.AudioFileInputHandler;
+import com.kit.video.generator.input.VideoFileInputHandler;
+import com.kit.video.generator.out.MediaCodecOutputHandler;
+
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,7 +42,7 @@ public class FileProcessingPipeline {
 
         InputHandler videoInput = new VideoFileInputHandler(inputPath);
         InputHandler audioInput = new AudioFileInputHandler(inputPath);
-        OutputHandler output = new MediaCodecOutputHandler(outputPath, outputWidth, outputHeight, false);
+        OutputHandler output = new MediaCodecOutputHandler(outputPath, outputWidth, outputHeight, false,false);
 
         try {
             if (!videoInput.initialize() || !audioInput.initialize() || !output.initialize()) {

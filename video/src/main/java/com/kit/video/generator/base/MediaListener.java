@@ -1,4 +1,4 @@
-package com.kit.video.editor;
+package com.kit.video.generator.base;
 
 /**
  * 媒体处理事件监听器接口

@@ -1,9 +1,10 @@
-package com.kit.video.editor;
+package com.kit.video.generator.base;
+
 
 /**
  * 输入接口
  */
-interface InputHandler {
+public interface InputHandler {
     boolean initialize();
 
     FrameData getData();

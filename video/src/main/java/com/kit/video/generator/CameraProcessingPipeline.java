@@ -1,7 +1,13 @@
-package com.kit.video.editor;
+package com.kit.video.generator;
 
 import android.opengl.EGLContext;
 import android.util.Log;
+
+import com.kit.video.generator.base.FrameData;
+import com.kit.video.generator.base.MediaListener;
+import com.kit.video.generator.input.AudioRecordInputHandler;
+import com.kit.video.generator.input.CameraInputHandler;
+import com.kit.video.generator.out.MediaCodecOutputHandler;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,7 +47,7 @@ public class CameraProcessingPipeline {
     private void initializeHandlers(String outputPath, int outputWidth, int outputHeight) {
         cameraInput = new CameraInputHandler();
         audioInput = new AudioRecordInputHandler();
-        output = new MediaCodecOutputHandler(outputPath, outputWidth, outputHeight, true);
+        output = new MediaCodecOutputHandler(outputPath, outputWidth, outputHeight, true,false);
     }
 
     private boolean initializeComponents() {

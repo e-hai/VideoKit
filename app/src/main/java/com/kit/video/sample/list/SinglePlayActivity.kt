@@ -1,4 +1,4 @@
-package com.kit.video.sample
+package com.kit.video.sample.list
 
 import android.app.Activity
 import android.content.Intent

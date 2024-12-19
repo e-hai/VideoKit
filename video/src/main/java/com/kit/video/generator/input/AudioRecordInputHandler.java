@@ -1,16 +1,19 @@
-package com.kit.video.editor;
+package com.kit.video.generator.input;
 
 import android.media.AudioFormat;
 import android.media.AudioRecord;
 import android.media.MediaRecorder;
 import android.util.Log;
 
+import com.kit.video.generator.base.FrameData;
+import com.kit.video.generator.base.InputHandler;
+
 import java.nio.ByteBuffer;
 
 /**
  * 录音输入处理（从麦克风录音中提取音频数据）
  */
-class AudioRecordInputHandler implements InputHandler {
+public class AudioRecordInputHandler implements InputHandler {
 
     // 可用的音频源列表
     private static final int[] AUDIO_SOURCES = new int[]{

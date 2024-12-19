@@ -1,4 +1,4 @@
-package com.kit.video.sample
+package com.kit.video.sample.list
 
 import android.app.Application
 import android.net.Uri

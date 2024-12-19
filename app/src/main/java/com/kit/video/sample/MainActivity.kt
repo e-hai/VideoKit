@@ -1,5 +1,6 @@
 package com.kit.video.sample
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -12,44 +13,29 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.viewpager2.widget.ViewPager2
 import com.kit.video.list.exoplayer.ExoManager
+import com.kit.video.sample.generator.GeneratorSampleActivity
+import com.kit.video.sample.list.ExoDemoAdapter
+import com.kit.video.sample.list.MainViewModel
+import com.kit.video.sample.list.SinglePlayActivity
+import com.kit.video.sample.list.SinglePlayActivity.Companion.KEY_VIDEO
+import com.kit.video.sample.list.VideoListSampleActivity
 import com.kit.video.smaple.R
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
-    private val viewModel by viewModels<MainViewModel>()
-
-    private var selectedPosition = 0
-    private lateinit var viewPager: ViewPager2
-    private lateinit var pageChangeCallback: ViewPager2.OnPageChangeCallback
-    private lateinit var exoDemoAdapter: ExoDemoAdapter
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         hideSystemNavigation()
         setContentView(R.layout.activity_main)
-        exoDemoAdapter = ExoDemoAdapter(this, ExoManager(this, this, listener = object :
-            Player.Listener {
-            override fun onPlayerError(error: PlaybackException) {
-                error.printStackTrace()
-            }
-        }))
-        pageChangeCallback = object : ViewPager2.OnPageChangeCallback() {
-            override fun onPageSelected(position: Int) {
-                selectedPosition = position
-                exoDemoAdapter.switchVideo(position)
-            }
-        }
-        viewPager = findViewById(R.id.viewPager)
-        viewPager.adapter = exoDemoAdapter
-        lifecycleScope.launch {
-            viewModel.exampleExoData.flowWithLifecycle(lifecycle, Lifecycle.State.STARTED)
-                .collectLatest { pagingData ->
-                    exoDemoAdapter.submitData(pagingData)
-                }
-        }
 
-        findViewById<Button>(R.id.nextView).setOnClickListener {
-            SinglePlayActivity.start(this)
+        findViewById<Button>(R.id.bt_go_list).setOnClickListener {
+            val intent = Intent(this, SinglePlayActivity::class.java)
+            startActivity(intent)
+        }
+        findViewById<Button>(R.id.bt_go_generator).setOnClickListener {
+            val intent = Intent(this, GeneratorSampleActivity::class.java)
+            startActivity(intent)
         }
     }
 
@@ -67,26 +53,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-
-
-    override fun onStart() {
-        super.onStart()
-        viewPager.postDelayed({
-            viewPager.setCurrentItem(selectedPosition, false)
-            viewPager.registerOnPageChangeCallback(pageChangeCallback)
-            pageChangeCallback.onPageSelected(selectedPosition)
-        }, 500)
-    }
-
-
-    override fun onStop() {
-        super.onStop()
-        viewPager.unregisterOnPageChangeCallback(pageChangeCallback)
-    }
-
-    companion object {
-        const val TAG = "MainActivity"
-    }
 
 }
 
