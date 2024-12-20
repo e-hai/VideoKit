@@ -22,9 +22,8 @@ public class CameraInputHandler implements InputHandler {
     private EglWrapper eglWrapper;
     private EglSurface eglSurface;
     private TextureRenderer textureRenderer;
-    private long startTimeNs;
     private int textureId;
-
+    private long lastPresentationTimeUs = 0;
 
 
     public void setEglContext(EGLContext parentContext, Surface outputSurface) {
@@ -46,7 +45,6 @@ public class CameraInputHandler implements InputHandler {
         eglSurface.makeCurrent();  // 设置当前上下文
         textureRenderer = new TextureRenderer();  // 创建渲染器
         textureRenderer.setup();  // 初始化渲染器
-        startTimeNs = System.nanoTime();
         return true;
     }
 
@@ -63,11 +61,15 @@ public class CameraInputHandler implements InputHandler {
     @WorkerThread
     @Override
     public FrameData getData() {
-        long timestampNs = System.nanoTime() - startTimeNs;
+        long timestampUs = getLastPresentationTimeUs();
         // PTS单位为微秒
-        return new FrameData(textureId, timestampNs / 1000);
+        return new FrameData(textureId, timestampUs);
     }
 
+
+    public FrameData getEndOfStreamData() {
+        return new FrameData(true, getLastPresentationTimeUs());
+    }
 
     @Override
     public void release() {
@@ -93,5 +95,22 @@ public class CameraInputHandler implements InputHandler {
             textureRenderer.release();
             textureRenderer = null;
         }
+    }
+
+
+    /**
+     * 获取下一帧的时间戳，确保单调递增。
+     *
+     * @return 时间戳（单位：微秒）。
+     */
+    private long getLastPresentationTimeUs() {
+        long result = System.nanoTime() / 1000L;
+        //时间应该是单调的
+        //否则muxer写入失败
+        if (result < lastPresentationTimeUs) {
+            result = (lastPresentationTimeUs - result) + result;
+        }
+        lastPresentationTimeUs = result;
+        return lastPresentationTimeUs;
     }
 }

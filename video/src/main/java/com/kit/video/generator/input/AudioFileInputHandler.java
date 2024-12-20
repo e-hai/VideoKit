@@ -16,9 +16,8 @@ import java.nio.ByteBuffer;
 public class AudioFileInputHandler implements InputHandler {
     private MediaExtractor extractor;
     private MediaCodec decoder;
-    private int audioTrackIndex;
-    private boolean endOfStream;
     private final String inputPath;
+    private boolean endOfStream;
 
     public AudioFileInputHandler(String inputPath) {
         this.inputPath = inputPath;
@@ -33,8 +32,7 @@ public class AudioFileInputHandler implements InputHandler {
                 MediaFormat format = extractor.getTrackFormat(i);
                 String mime = format.getString(MediaFormat.KEY_MIME);
                 if (mime.startsWith("audio/")) {
-                    audioTrackIndex = i;
-                    extractor.selectTrack(audioTrackIndex);
+                    extractor.selectTrack(i);
                     decoder = MediaCodec.createDecoderByType(mime);
                     decoder.configure(format, null, null, 0);
                     decoder.start();
@@ -50,18 +48,18 @@ public class AudioFileInputHandler implements InputHandler {
 
     @Override
     public FrameData getData() {
-        // 如果已经到达流的末尾，返回 结束帧
-        if (endOfStream) return new FrameData(true);
+        // 如果已经到达流的末尾
+        if (endOfStream) return null;
 
         int inIndex = decoder.dequeueInputBuffer(10000);
         if (inIndex >= 0) {
             ByteBuffer buffer = decoder.getInputBuffer(inIndex);
             int sampleSize = extractor.readSampleData(buffer, 0);
+            long presentationTimeUs = extractor.getSampleTime();
             if (sampleSize < 0) {
-                decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                decoder.queueInputBuffer(inIndex, 0, 0, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                 endOfStream = true;
             } else {
-                long presentationTimeUs = extractor.getSampleTime();
                 decoder.queueInputBuffer(inIndex, 0, sampleSize, presentationTimeUs, 0);
                 extractor.advance();
             }
@@ -71,7 +69,12 @@ public class AudioFileInputHandler implements InputHandler {
         int outIndex = decoder.dequeueOutputBuffer(info, 10000);
         if (outIndex >= 0) {
             ByteBuffer buffer = decoder.getOutputBuffer(outIndex);
-            FrameData frame = new FrameData(buffer, info.presentationTimeUs);
+            FrameData frame;
+            if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                frame = new FrameData(buffer, info.presentationTimeUs);
+            } else {
+                frame = new FrameData(true, info.presentationTimeUs);
+            }
             decoder.releaseOutputBuffer(outIndex, false);
             return frame;
         }

@@ -120,10 +120,9 @@ public class ViewProcessingPipeline extends FrameLayout {
         if (outputHandler != null) {
             executorService.execute(() -> {
                 // Write end of stream frame
-                FrameData endOfStreamFrame = new FrameData(true);
                 // 计算时间戳
                 long timestampNs = lastTimestampUs + frameIntervalUs;
-                endOfStreamFrame.setPts(timestampNs);
+                FrameData endOfStreamFrame = new FrameData(true, timestampNs);
                 writeVideoFrame(endOfStreamFrame);
                 // Wait for all frames to be processed and written
                 outputHandler.release();
@@ -142,6 +141,7 @@ public class ViewProcessingPipeline extends FrameLayout {
             outputHandler.writeVideoFrame(frameData);
         }
     }
+
 
     public interface OnFrameCapturedListener {
         void onPause();

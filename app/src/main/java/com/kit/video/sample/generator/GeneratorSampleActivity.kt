@@ -56,8 +56,8 @@ class GeneratorSampleActivity : AppCompatActivity() {
 
     private fun startAnimation() {
 
-        val animator = ObjectAnimator.ofFloat(viewMove, "translationX", 0f, 300f).apply {
-            duration = 5000 // 动画持续时间，单位为毫秒
+        val animator = ObjectAnimator.ofFloat(viewMove, "translationY", 0f, 500f).apply {
+            duration = 2000 // 动画持续时间，单位为毫秒
             addUpdateListener {
                 layoutPipeline.invalidate()
             }

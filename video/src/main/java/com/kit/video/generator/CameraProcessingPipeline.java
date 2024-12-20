@@ -32,6 +32,7 @@ public class CameraProcessingPipeline {
 
         if (!initializeComponents()) {
             Log.e("Pipeline", "Initialization failed");
+            if (null != mediaListener) mediaListener.onError("Initialization failed");
             shutdown();
             return;
         }
@@ -47,7 +48,7 @@ public class CameraProcessingPipeline {
     private void initializeHandlers(String outputPath, int outputWidth, int outputHeight) {
         cameraInput = new CameraInputHandler();
         audioInput = new AudioRecordInputHandler();
-        output = new MediaCodecOutputHandler(outputPath, outputWidth, outputHeight, true,false);
+        output = new MediaCodecOutputHandler(outputPath, outputWidth, outputHeight, true, false);
     }
 
     private boolean initializeComponents() {
@@ -114,7 +115,8 @@ public class CameraProcessingPipeline {
         isRunning = false;
         videoExecutor.submit(() -> {
             try {
-                output.writeVideoFrame(new FrameData(true));
+                FrameData endOfStreamFrame = cameraInput.getEndOfStreamData();
+                output.writeVideoFrame(endOfStreamFrame);
                 if (null != mediaListener) mediaListener.onEnd();
             } catch (Exception e) {
                 Log.e("Pipeline", "Error during drawing texture", e);
@@ -123,7 +125,8 @@ public class CameraProcessingPipeline {
 
         audioExecutor.submit(() -> {
             try {
-                output.writeAudioFrame(new FrameData(true));
+                FrameData endOfStreamFrame = audioInput.getEndOfStreamData();
+                output.writeAudioFrame(endOfStreamFrame);
             } catch (Exception e) {
                 Log.e("Pipeline", "Error during audio processing", e);
             }

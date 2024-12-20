@@ -16,9 +16,8 @@ import java.nio.ByteBuffer;
 public class VideoFileInputHandler implements InputHandler {
     private MediaExtractor extractor;
     private MediaCodec decoder;
-    private int videoTrackIndex;
-    private boolean endOfStream;
     private final String inputPath;
+    private boolean endOfStream;
 
     public VideoFileInputHandler(String inputPath) {
         this.inputPath = inputPath;
@@ -33,8 +32,7 @@ public class VideoFileInputHandler implements InputHandler {
                 MediaFormat format = extractor.getTrackFormat(i);
                 String mime = format.getString(MediaFormat.KEY_MIME);
                 if (mime.startsWith("video/")) {
-                    videoTrackIndex = i;
-                    extractor.selectTrack(videoTrackIndex);
+                    extractor.selectTrack(i);
                     decoder = MediaCodec.createDecoderByType(mime);
                     decoder.configure(format, null, null, 0);
                     decoder.start();
@@ -50,9 +48,7 @@ public class VideoFileInputHandler implements InputHandler {
 
     @Override
     public FrameData getData() {
-        // 如果已经到达流的末尾，返回 结束帧
         if (endOfStream) return null;
-
         // 获取解码器的输入缓冲区索引
         int inIndex = decoder.dequeueInputBuffer(10000);
         if (inIndex >= 0) {
@@ -60,13 +56,13 @@ public class VideoFileInputHandler implements InputHandler {
             ByteBuffer buffer = decoder.getInputBuffer(inIndex);
             // 从提取器中读取样本数据到缓冲区
             int sampleSize = extractor.readSampleData(buffer, 0);
+            // 获取样本的时间戳
+            long presentationTimeUs = extractor.getSampleTime();
             if (sampleSize < 0) {
                 // 如果样本大小小于 0，表示没有更多数据，标记为流结束
-                decoder.queueInputBuffer(inIndex, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
+                decoder.queueInputBuffer(inIndex, 0, 0, presentationTimeUs, MediaCodec.BUFFER_FLAG_END_OF_STREAM);
                 endOfStream = true;
             } else {
-                // 获取样本的时间戳
-                long presentationTimeUs = extractor.getSampleTime();
                 // 将样本数据放入解码器的输入缓冲区
                 decoder.queueInputBuffer(inIndex, 0, sampleSize, presentationTimeUs, 0);
                 // 移动提取器到下一个样本
@@ -82,7 +78,12 @@ public class VideoFileInputHandler implements InputHandler {
             // 获取输出缓冲区
             ByteBuffer buffer = decoder.getOutputBuffer(outIndex);
             // 创建 FrameData 对象，包含缓冲区和时间戳
-            FrameData frame = new FrameData(buffer, info.presentationTimeUs);
+            FrameData frame;
+            if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                frame = new FrameData(true, info.presentationTimeUs);
+            } else {
+                frame = new FrameData(buffer, info.presentationTimeUs);
+            }
             // 释放输出缓冲区
             decoder.releaseOutputBuffer(outIndex, false);
             // 返回 FrameData 对象

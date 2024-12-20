@@ -45,8 +45,9 @@ public class FrameData {
      *
      * @param endOfStream 是否为流结束标记
      */
-    public FrameData(boolean endOfStream) {
+    public FrameData(boolean endOfStream, long pts) {
         this.endOfStream = endOfStream;
+        this.pts = pts;
     }
 
     /**

@@ -27,6 +27,7 @@ public class AudioRecordInputHandler implements InputHandler {
     private AudioRecord audioRecord;
     private int bufferSize;
     private boolean isRecording;
+    private long lastPresentationTimeUs = 0;
 
     @Override
     public boolean initialize() {
@@ -70,6 +71,10 @@ public class AudioRecordInputHandler implements InputHandler {
         }
     }
 
+    public FrameData getEndOfStreamData() {
+        return new FrameData(true, getLastPresentationTimeUs());
+    }
+
     @Override
     public void release() {
         if (isRecording) {
@@ -77,5 +82,21 @@ public class AudioRecordInputHandler implements InputHandler {
             isRecording = false;
         }
         audioRecord.release();
+    }
+
+    /**
+     * 获取下一帧的时间戳，确保单调递增。
+     *
+     * @return 时间戳（单位：微秒）。
+     */
+    private long getLastPresentationTimeUs() {
+        long result = System.nanoTime() / 1000L;
+        //时间应该是单调的
+        //否则muxer写入失败
+        if (result < lastPresentationTimeUs) {
+            result = (lastPresentationTimeUs - result) + result;
+        }
+        lastPresentationTimeUs = result;
+        return lastPresentationTimeUs;
     }
 }
