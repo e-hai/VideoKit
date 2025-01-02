@@ -30,7 +30,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         findViewById<Button>(R.id.bt_go_list).setOnClickListener {
-            val intent = Intent(this, SinglePlayActivity::class.java)
+            val intent = Intent(this, VideoListSampleActivity::class.java)
             startActivity(intent)
         }
         findViewById<Button>(R.id.bt_go_generator).setOnClickListener {
