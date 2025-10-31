@@ -175,11 +175,11 @@ fun CropVideoPlayer(videoUri: Uri, modifier: Modifier = Modifier) {
             factory = { ctx ->
                 PlayerView(ctx).apply {
                     player = exoPlayer
-                    useController = !isSelecting
+                    useController = false
                 }
             },
             update = { playerView ->
-                playerView.useController = !isSelecting
+                playerView.useController = false
             },
             modifier = Modifier
                 .fillMaxSize()
@@ -250,21 +250,24 @@ fun SelectionOverlay(
 ) {
     var activeHandle by remember { mutableStateOf<ResizeHandle?>(null) }
     var isDraggingRect by remember { mutableStateOf(false) }
+    
+    // 使用 rememberUpdatedState 确保能获取到最新的 cropRect 值
+    val currentCropRect by rememberUpdatedState(cropRect)
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 半透明蒙层
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(cropRect) {
+                .pointerInput(Unit) {  // 使用 Unit 作为 key 避免手势中断
                     detectDragGestures(
                         onDragStart = { offset ->
-                            // 优先检测角点
-                            val handle = getResizeHandle(offset, cropRect)
+                            // 优先检测角点，使用当前最新的cropRect值
+                            val handle = getResizeHandle(offset, currentCropRect)
                             if (handle != null) {
                                 activeHandle = handle
                                 isDraggingRect = false
-                            } else if (cropRect.contains(offset)) {
+                            } else if (currentCropRect.contains(offset)) {
                                 // 在选框内部才允许拖动
                                 isDraggingRect = true
                                 activeHandle = null
@@ -277,20 +280,20 @@ fun SelectionOverlay(
                             
                             when {
                                 activeHandle != null -> {
-                                    // 调整选框大小
-                                    val newRect = resizeCropRect(cropRect, activeHandle!!, dragAmount, viewSize)
+                                    // 调整选框大小，使用当前最新的cropRect值
+                                    val newRect = resizeCropRect(currentCropRect, activeHandle!!, dragAmount, viewSize)
                                     onCropRectChange(newRect)
                                 }
                                 isDraggingRect -> {
-                                    // 拖动整个选框
-                                    val newLeft = (cropRect.left + dragAmount.x).coerceIn(0f, viewSize.width - cropRect.width)
-                                    val newTop = (cropRect.top + dragAmount.y).coerceIn(0f, viewSize.height - cropRect.height)
+                                    // 拖动整个选框，使用当前最新的cropRect值
+                                    val newLeft = (currentCropRect.left + dragAmount.x).coerceIn(0f, viewSize.width - currentCropRect.width)
+                                    val newTop = (currentCropRect.top + dragAmount.y).coerceIn(0f, viewSize.height - currentCropRect.height)
                                     onCropRectChange(
                                         Rect(
                                             newLeft,
                                             newTop,
-                                            newLeft + cropRect.width,
-                                            newTop + cropRect.height
+                                            newLeft + currentCropRect.width,
+                                            newTop + currentCropRect.height
                                         )
                                     )
                                 }
@@ -312,38 +315,38 @@ fun SelectionOverlay(
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
                 topLeft = Offset.Zero,
-                size = Size(size.width, cropRect.top)
+                size = Size(size.width, currentCropRect.top)
             )
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(0f, cropRect.top),
-                size = Size(cropRect.left, cropRect.height)
+                topLeft = Offset(0f, currentCropRect.top),
+                size = Size(currentCropRect.left, currentCropRect.height)
             )
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(cropRect.right, cropRect.top),
-                size = Size(size.width - cropRect.right, cropRect.height)
+                topLeft = Offset(currentCropRect.right, currentCropRect.top),
+                size = Size(size.width - currentCropRect.right, currentCropRect.height)
             )
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(0f, cropRect.bottom),
-                size = Size(size.width, size.height - cropRect.bottom)
+                topLeft = Offset(0f, currentCropRect.bottom),
+                size = Size(size.width, size.height - currentCropRect.bottom)
             )
 
             // 绘制选框边框（更粗更明显）
             drawRect(
                 color = Color.White,
-                topLeft = cropRect.topLeft,
-                size = Size(cropRect.width, cropRect.height),
+                topLeft = currentCropRect.topLeft,
+                size = Size(currentCropRect.width, currentCropRect.height),
                 style = Stroke(width = 4f)
             )
 
             // 绘制四个角的控制点（更大更明显）
             listOf(
-                cropRect.topLeft,
-                Offset(cropRect.right, cropRect.top),
-                Offset(cropRect.left, cropRect.bottom),
-                cropRect.bottomRight
+                currentCropRect.topLeft,
+                Offset(currentCropRect.right, currentCropRect.top),
+                Offset(currentCropRect.left, currentCropRect.bottom),
+                currentCropRect.bottomRight
             ).forEach { corner ->
                 // 外圈白色
                 drawCircle(
@@ -366,28 +369,28 @@ fun SelectionOverlay(
             // 垂直线
             drawLine(
                 color = lineColor,
-                start = Offset(cropRect.left + cropRect.width / 3f, cropRect.top),
-                end = Offset(cropRect.left + cropRect.width / 3f, cropRect.bottom),
+                start = Offset(currentCropRect.left + currentCropRect.width / 3f, currentCropRect.top),
+                end = Offset(currentCropRect.left + currentCropRect.width / 3f, currentCropRect.bottom),
                 strokeWidth = lineWidth
             )
             drawLine(
                 color = lineColor,
-                start = Offset(cropRect.left + cropRect.width * 2f / 3f, cropRect.top),
-                end = Offset(cropRect.left + cropRect.width * 2f / 3f, cropRect.bottom),
+                start = Offset(currentCropRect.left + currentCropRect.width * 2f / 3f, currentCropRect.top),
+                end = Offset(currentCropRect.left + currentCropRect.width * 2f / 3f, currentCropRect.bottom),
                 strokeWidth = lineWidth
             )
 
             // 水平线
             drawLine(
                 color = lineColor,
-                start = Offset(cropRect.left, cropRect.top + cropRect.height / 3f),
-                end = Offset(cropRect.right, cropRect.top + cropRect.height / 3f),
+                start = Offset(currentCropRect.left, currentCropRect.top + currentCropRect.height / 3f),
+                end = Offset(currentCropRect.right, currentCropRect.top + currentCropRect.height / 3f),
                 strokeWidth = lineWidth
             )
             drawLine(
                 color = lineColor,
-                start = Offset(cropRect.left, cropRect.top + cropRect.height * 2f / 3f),
-                end = Offset(cropRect.right, cropRect.top + cropRect.height * 2f / 3f),
+                start = Offset(currentCropRect.left, currentCropRect.top + currentCropRect.height * 2f / 3f),
+                end = Offset(currentCropRect.right, currentCropRect.top + currentCropRect.height * 2f / 3f),
                 strokeWidth = lineWidth
             )
         }
