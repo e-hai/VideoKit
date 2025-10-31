@@ -42,7 +42,6 @@ public class CameraInputHandler implements InputHandler {
         eglRelease();  // 释放之前的资源
         eglWrapper = new EglWrapper(parentContext, false, true);
         eglSurface = eglWrapper.createFromSurface(outputSurface);
-        eglSurface.makeCurrent();  // 设置当前上下文
         textureRenderer = new TextureRenderer();  // 创建渲染器
         textureRenderer.setup();  // 初始化渲染器
         return true;
@@ -52,7 +51,7 @@ public class CameraInputHandler implements InputHandler {
     // 执行渲染
     @WorkerThread
     public void draw(int textureId) {
-        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);  // 清除颜色缓冲区
+        GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);     // 清除颜色缓冲区
         textureRenderer.render(textureId, true);  // 渲染纹理
         eglSurface.swap();  // 交换缓冲区
         this.textureId = textureId;

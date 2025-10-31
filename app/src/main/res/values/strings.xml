@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">VideoKit</string>
+    <string name="title_activity_editor">EditorActivity</string>
 </resources>

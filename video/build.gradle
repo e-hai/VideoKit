@@ -1,14 +1,15 @@
 plugins {
-    id 'com.android.library'
-    id 'org.jetbrains.kotlin.android'
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
     namespace 'com.kit.video'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
-        minSdk 21
+        minSdk 24
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
@@ -22,44 +23,57 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '11'
+    }
+    buildFeatures {
+        compose true
     }
 }
 
 dependencies {
-    implementation 'androidx.core:core-ktx:1.10.1'
-    implementation "androidx.recyclerview:recyclerview:1.3.0"
-    implementation "androidx.paging:paging-runtime-ktx:3.1.1"
+    implementation libs.androidx.core.ktx
+    implementation libs.androidx.recyclerview
+    implementation libs.androidx.paging.runtime.ktx
 
-    def media3_version = "1.5.0"
     // 使用 ExoPlayer 进行媒体播放
-    implementation "androidx.media3:media3-exoplayer:$media3_version"
+    implementation libs.androidx.media3.exoplayer
     // 使用 OkHttp 网络栈加载数据
-    implementation "androidx.media3:media3-datasource-okhttp:$media3_version"
+    implementation libs.androidx.media3.datasource.okhttp
     // 构建媒体播放界面
-    implementation "androidx.media3:media3-ui:$media3_version"
+    implementation libs.androidx.media3.ui.lib
     // 暴露和控制媒体会话
-    implementation "androidx.media3:media3-session:$media3_version"
+    implementation libs.androidx.media3.session
     // 从媒体容器中提取数据
-    implementation "androidx.media3:media3-extractor:$media3_version"
+    implementation libs.androidx.media3.extractor
     // 使用 Jetpack WorkManager 的 WorkManager 调度后台操作
-    implementation "androidx.media3:media3-exoplayer-workmanager:$media3_version"
+    implementation libs.androidx.media3.exoplayer.workmanager
     // 转换媒体文件
-    implementation "androidx.media3:media3-transformer:$media3_version"
+    implementation libs.androidx.media3.transformer
     // 测试媒体组件的工具（包括 ExoPlayer 组件）
-//    implementation "androidx.media3:media3-test-utils:$media3_version"
+//    implementation libs.androidx.media3.test.utils
     // 使用 Robolectric 测试媒体组件的工具
-//    implementation "androidx.media3:media3-test-utils-robolectric:$media3_version"
+//    implementation libs.androidx.media3.test.utils.robolectric
     // 媒体数据库组件的通用功能
-    implementation "androidx.media3:media3-database:$media3_version"
+    implementation libs.androidx.media3.database
     // 媒体解码器的通用功能
-    implementation "androidx.media3:media3-decoder:$media3_version"
+    implementation libs.androidx.media3.decoder
     // 加载数据的通用功能
-    implementation "androidx.media3:media3-datasource:$media3_version"
+    implementation libs.androidx.media3.datasource
     // 多个媒体库中通用的功能
-    implementation "androidx.media3:media3-common:$media3_version"
+    implementation libs.androidx.media3.common
+    
+    // Compose dependencies
+    implementation platform(libs.androidx.compose.bom)
+    implementation libs.androidx.compose.ui
+    implementation libs.androidx.compose.ui.graphics
+    implementation libs.androidx.compose.ui.tooling.preview
+    implementation libs.androidx.compose.material3
+    implementation libs.androidx.compose.material3.icons.core
+    implementation libs.androidx.compose.material3.icons.extended
+    debugImplementation libs.androidx.compose.ui.tooling
+    debugImplementation libs.androidx.compose.ui.test.manifest
 }

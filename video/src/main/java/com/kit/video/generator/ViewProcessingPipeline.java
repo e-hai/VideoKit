@@ -6,14 +6,11 @@ import android.util.AttributeSet;
 import android.util.Log;
 import android.view.Surface;
 import android.widget.FrameLayout;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-
 import com.kit.video.generator.base.FrameData;
 import com.kit.video.generator.base.MediaListener;
 import com.kit.video.generator.out.MediaCodecOutputHandler;
-
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 

@@ -4,24 +4,11 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
-import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.flowWithLifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.media3.common.PlaybackException
-import androidx.media3.common.Player
-import androidx.viewpager2.widget.ViewPager2
-import com.kit.video.list.exoplayer.ExoManager
+import com.kit.video.sample.editor.EditorActivity
 import com.kit.video.sample.generator.GeneratorSampleActivity
-import com.kit.video.sample.list.ExoDemoAdapter
-import com.kit.video.sample.list.MainViewModel
-import com.kit.video.sample.list.SinglePlayActivity
-import com.kit.video.sample.list.SinglePlayActivity.Companion.KEY_VIDEO
 import com.kit.video.sample.list.VideoListSampleActivity
 import com.kit.video.smaple.R
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,6 +24,11 @@ class MainActivity : AppCompatActivity() {
             val intent = Intent(this, GeneratorSampleActivity::class.java)
             startActivity(intent)
         }
+        findViewById<Button>(R.id.bt_go_editor).setOnClickListener {
+            val intent = Intent(this, EditorActivity::class.java)
+            startActivity(intent)
+        }
+
     }
 
     /**
@@ -52,13 +44,4 @@ class MainActivity : AppCompatActivity() {
                     or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN) // 布局延伸到状态栏下方
         }
     }
-
-
 }
-
-
-
-
-
-
-
