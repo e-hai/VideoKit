@@ -12,6 +12,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
@@ -33,10 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.kit.video.sample.editor.ui.theme.VideoKitTheme
-import kotlin.math.min
+import kotlin.div
 
 class EditorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -52,13 +56,17 @@ class EditorActivity : ComponentActivity() {
     }
 }
 
+// 裁剪信息数据类
+data class CropInfo(
+    val previewRect: Rect,        // 用户选择的显示区域（相对于视频原始尺寸的归一化坐标）
+    val videoSize: IntSize        // 视频原始尺寸（像素）
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPickerScreen(modifier: Modifier = Modifier) {
 
     var isCrop by remember { mutableStateOf(false) }
-
 
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -93,7 +101,7 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
             var aspectRatioMode by remember { mutableStateOf(AspectRatioMode.FREE) }
 
             // 用于存储裁剪信息的变量
-            var cropRect by remember { mutableStateOf<Rect?>(null) }
+            var cropInfo by remember { mutableStateOf<CropInfo?>(null) }
 
             Box(
                 modifier = Modifier
@@ -104,7 +112,7 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
                 CropVideoPlayer(
                     videoUri = selectedVideoUri!!,
                     aspectRatioMode = aspectRatioMode,
-                    onCropRect = { cropRect = it } // 接收裁剪信息
+                    onCropInfoChange = { cropInfo = it } // 接收完整的裁剪信息
                 )
 
                 Column(
@@ -173,7 +181,7 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(250.dp)
+                                .height(600.dp)
                                 .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
@@ -185,34 +193,31 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
                             )
 
                             // 显示裁剪后的视频预览
-                            selectedVideoUri?.let { uri ->
-                                AndroidView(
-                                    factory = { context ->
-                                        PlayerView(context).apply {
-                                            val player = ExoPlayer.Builder(context).build()
-                                            player.setMediaItem(MediaItem.fromUri(uri))
-                                            player.prepare()
-                                            player.playWhenReady = true
-                                            player.repeatMode = Player.REPEAT_MODE_ONE
-                                            this.player = player
-                                            useController = true
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .graphicsLayer(
-
-                                        )
-                                        .weight(1f)
-                                )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.Red)
+                                    .weight(1f)
+                            ) {
+                                selectedVideoUri?.let { uri ->
+                                    cropInfo?.let { info ->
+                                        CropVideoPreview(uri, info)
+                                    }
+                                }
                             }
 
-                            Text(
-                                text = "裁剪区域: ${cropRect?.top}x${cropRect?.bottom}x${cropRect?.left}x${cropRect?.right}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White,
-                                modifier = Modifier.padding(top = 16.dp)
-                            )
+                            cropInfo?.let { info ->
+                                Column(
+                                    modifier = Modifier.padding(top = 16.dp),
+                                    horizontalAlignment = Alignment.Start
+                                ) {
+                                    Text(
+                                        text = "视频原始尺寸: ${info.videoSize.width} x ${info.videoSize.height}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color.White.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -232,14 +237,118 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
+@Composable
+fun CropVideoPreview(videoUri: Uri, cropInfo: CropInfo) {
+    val context = LocalContext.current
 
-// 裁剪信息
-data class AppliedInfo(
+    // 创建并记住ExoPlayer实例
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(videoUri))
+            prepare()
+            playWhenReady = true
+            repeatMode = Player.REPEAT_MODE_ONE
+        }
+    }
+
+    // 当视频URI改变时重新加载视频并重置状态
+    LaunchedEffect(videoUri) {
+        exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
+        exoPlayer.prepare()
+        exoPlayer.play()
+    }
+
+    // 组件销毁时释放ExoPlayer资源
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
+    // 使用裁剪区域的比例，而不是视频显示区域的比例
+    val viewMaxSize = 300f
+    val videoRatio = cropInfo.videoSize.width.toFloat() / cropInfo.videoSize.height.toFloat()
+    Log.d("CropVideoPreview", "videoRatio: $videoRatio")
+
+    val viewSize = if (videoRatio > 1f) {
+        // 横向视频
+        IntSize(viewMaxSize.toInt(), (viewMaxSize / videoRatio).toInt())
+    } else {
+        // 纵向视频
+        IntSize((viewMaxSize / videoRatio).toInt(), viewMaxSize.toInt())
+    }
+
+    // 计算裁剪参数
+    val cropParams = remember(cropInfo) {
+        calculateCropParameters(viewSize, cropInfo)
+    }
+
+    Log.d("CropVideoPreview", "viewSize: $viewSize, cropInfo: $cropInfo, cropParams: $cropParams")
+    Box(
+        modifier = Modifier
+            .size(viewSize.width.dp, viewSize.height.dp)
+            .background(Color.Blue),
+        contentAlignment = Alignment.Center
+    ) {
+        AndroidView(
+            factory = { ctx ->
+                PlayerView(ctx).apply {
+                    player = exoPlayer
+                    useController = false
+                    resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                }
+            },
+            update = { playerView ->
+                playerView.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    scaleX = cropParams.scaleX
+                    scaleY = cropParams.scaleY
+                    translationX = cropParams.translationX
+                    translationY = cropParams.translationY
+                    clip = true
+
+                }
+        )
+    }
+}
+
+// 裁剪参数数据类
+data class CropParameters(
     val scaleX: Float,
     val scaleY: Float,
-    val offsetX: Float,
-    val offsetY: Float
+    val translationX: Float,
+    val translationY: Float
 )
+
+/**
+ * 计算裁剪参数
+ * 将用户选择的裁剪区域转换为视频播放器的缩放和平移参数
+ */
+fun calculateCropParameters(viewSize: IntSize, cropInfo: CropInfo): CropParameters {
+    val normalizedLeft = cropInfo.previewRect.left
+    val normalizedTop = cropInfo.previewRect.top
+    val normalizedWidth = cropInfo.previewRect.width
+    val normalizedHeight = cropInfo.previewRect.height
+
+    // 缩放比例 = 放大以填充选框区域
+    val scaleX = 1f / normalizedWidth
+    val scaleY = 1f / normalizedHeight
+
+    // 裁剪区域中心点（归一化）
+    val centerX = normalizedLeft + normalizedWidth / 2f
+    val centerY = normalizedTop + normalizedHeight / 2f
+
+    // 偏移计算：将裁剪区域中心点对齐到视图中心
+    val translationX = (0.5f - centerX) * viewSize.width * scaleX
+    val translationY = (0.5f - centerY) * viewSize.height * scaleY
+
+    return CropParameters(scaleX, scaleY, translationX, translationY)
+}
+
 
 
 // 裁剪比例模式枚举
@@ -256,13 +365,13 @@ enum class AspectRatioMode(val displayName: String, val ratio: Float?) {
  *
  * @param videoUri 视频文件的URI
  * @param aspectRatioMode 裁剪比例模式
- * @param onCropRect 回调函数，当裁剪信息发生变化时调用
+ * @param onCropInfoChange 回调函数，当裁剪信息发生变化时调用
  */
 @Composable
 fun CropVideoPlayer(
     videoUri: Uri,
     aspectRatioMode: AspectRatioMode,
-    onCropRect: (Rect) -> Unit = {},
+    onCropInfoChange: (CropInfo) -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -271,9 +380,6 @@ fun CropVideoPlayer(
 
     // 视频尺寸状态 - 从ExoPlayer获取的实际视频分辨率
     var videoSize by remember { mutableStateOf(IntSize.Zero) }
-
-    // 裁剪矩形状态 - 用户选择的裁剪区域
-    var cropRect by remember { mutableStateOf(Rect.Zero) }
 
     // 创建并记住ExoPlayer实例
     val exoPlayer = remember {
@@ -289,18 +395,6 @@ fun CropVideoPlayer(
                     videoSize = IntSize(size.width, size.height)
                 }
             })
-        }
-    }
-
-    // 当cropRect改变时通知外部组件
-    LaunchedEffect(cropRect) {
-        onCropRect(cropRect)
-    }
-
-    // 初始化选框 - 考虑视频和视图的尺寸
-    LaunchedEffect(viewSize, videoSize, aspectRatioMode) {
-        if (viewSize.width > 0 && viewSize.height > 0 && videoSize.width > 0 && videoSize.height > 0) {
-            cropRect = createInitialCropRect(viewSize, videoSize, aspectRatioMode)
         }
     }
 
@@ -343,9 +437,8 @@ fun CropVideoPlayer(
         SelectionOverlay(
             viewSize = viewSize,
             videoSize = videoSize,
-            cropRect = cropRect,
             aspectRatioMode = aspectRatioMode,
-            onCropRectChange = { cropRect = it }
+            onCropInfoChange = onCropInfoChange
         )
     }
 }
@@ -419,18 +512,36 @@ fun createInitialCropRect(viewSize: IntSize, videoSize: IntSize, mode: AspectRat
     }
 }
 
+private fun calculateCropPreviewRect(
+    videoSize: IntSize,
+    cropRect: Rect,
+    videoBounds: Rect
+): CropInfo {
+    val normalizedLeft = (cropRect.left - videoBounds.left) / videoBounds.width
+    val normalizedTop = (cropRect.top - videoBounds.top) / videoBounds.height
+    val normalizedWidth = cropRect.width / videoBounds.width
+    val normalizedHeight = cropRect.height / videoBounds.height
+    val previewRect = Rect(
+        normalizedLeft,
+        normalizedTop,
+        normalizedLeft + normalizedWidth,
+        normalizedTop + normalizedHeight
+    )
+    return CropInfo(previewRect, videoSize)
+}
+
 @Composable
 fun SelectionOverlay(
     viewSize: IntSize,
     videoSize: IntSize,
-    cropRect: Rect,
     aspectRatioMode: AspectRatioMode,
-    onCropRectChange: (Rect) -> Unit
+    onCropInfoChange: (CropInfo) -> Unit
 ) {
     var activeHandle by remember { mutableStateOf<ResizeHandle?>(null) }
     var isDraggingRect by remember { mutableStateOf(false) }
 
-    val currentCropRect by rememberUpdatedState(cropRect)
+    // 裁剪矩形状态 - 用户选择的裁剪区域
+    var cropRect by remember { mutableStateOf(Rect.Zero) }
 
     // 计算视频在视图中的实际显示区域
     val videoBounds = remember(viewSize, videoSize) {
@@ -452,6 +563,25 @@ fun SelectionOverlay(
         }
     }
 
+    // 当裁剪信息变化时，通知外部
+    LaunchedEffect(cropRect, videoBounds, videoSize) {
+        if (cropRect != Rect.Zero && videoSize.width > 0 && videoSize.height > 0) {
+            val previewRect = calculateCropPreviewRect(
+                videoSize,
+                cropRect,
+                videoBounds
+            )
+            onCropInfoChange(previewRect)
+        }
+    }
+
+    // 初始化选框 - 考虑视频和视图的尺寸
+    LaunchedEffect(videoSize, aspectRatioMode) {
+        if (viewSize.width > 0 && viewSize.height > 0 && videoSize.width > 0 && videoSize.height > 0) {
+            cropRect = createInitialCropRect(viewSize, videoSize, aspectRatioMode)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Canvas(
             modifier = Modifier
@@ -459,11 +589,11 @@ fun SelectionOverlay(
                 .pointerInput(videoSize) {
                     detectDragGestures(
                         onDragStart = { offset ->
-                            val handle = getResizeHandle(offset, currentCropRect)
+                            val handle = getResizeHandle(offset, cropRect)
                             if (handle != null) {
                                 activeHandle = handle
                                 isDraggingRect = false
-                            } else if (currentCropRect.contains(offset)) {
+                            } else if (cropRect.contains(offset)) {
                                 isDraggingRect = true
                                 activeHandle = null
                             }
@@ -474,35 +604,33 @@ fun SelectionOverlay(
                             when {
                                 activeHandle != null -> {
                                     val newRect = resizeCropRect(
-                                        currentCropRect,
+                                        cropRect,
                                         activeHandle!!,
                                         dragAmount,
-                                        viewSize,
                                         aspectRatioMode,
                                         videoBounds
                                     )
-                                    onCropRectChange(newRect)
+                                    cropRect = newRect
                                 }
 
                                 isDraggingRect -> {
-                                    val newLeft = (currentCropRect.left + dragAmount.x)
+                                    val newLeft = (cropRect.left + dragAmount.x)
                                         .coerceIn(
                                             videoBounds.left,
-                                            videoBounds.right - currentCropRect.width
+                                            videoBounds.right - cropRect.width
                                         )
-                                    val newTop = (currentCropRect.top + dragAmount.y)
+                                    val newTop = (cropRect.top + dragAmount.y)
                                         .coerceIn(
                                             videoBounds.top,
-                                            videoBounds.bottom - currentCropRect.height
+                                            videoBounds.bottom - cropRect.height
                                         )
-                                    onCropRectChange(
-                                        Rect(
-                                            newLeft,
-                                            newTop,
-                                            newLeft + currentCropRect.width,
-                                            newTop + currentCropRect.height
-                                        )
+                                    val newRect = Rect(
+                                        newLeft, newTop,
+                                        newLeft + cropRect.width,
+                                        newTop + cropRect.height
                                     )
+
+                                    cropRect = newRect
                                 }
                             }
                         },
@@ -521,38 +649,38 @@ fun SelectionOverlay(
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
                 topLeft = Offset.Zero,
-                size = Size(size.width, currentCropRect.top)
+                size = Size(size.width, cropRect.top)
             )
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(0f, currentCropRect.top),
-                size = Size(currentCropRect.left, currentCropRect.height)
+                topLeft = Offset(0f, cropRect.top),
+                size = Size(cropRect.left, cropRect.height)
             )
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(currentCropRect.right, currentCropRect.top),
-                size = Size(size.width - currentCropRect.right, currentCropRect.height)
+                topLeft = Offset(cropRect.right, cropRect.top),
+                size = Size(size.width - cropRect.right, cropRect.height)
             )
             drawRect(
                 color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(0f, currentCropRect.bottom),
-                size = Size(size.width, size.height - currentCropRect.bottom)
+                topLeft = Offset(0f, cropRect.bottom),
+                size = Size(size.width, size.height - cropRect.bottom)
             )
 
             // 绘制选框边框
             drawRect(
                 color = Color.White,
-                topLeft = currentCropRect.topLeft,
-                size = Size(currentCropRect.width, currentCropRect.height),
+                topLeft = cropRect.topLeft,
+                size = Size(cropRect.width, cropRect.height),
                 style = Stroke(width = 4f)
             )
 
             // 绘制四个角的控制点
             listOf(
-                currentCropRect.topLeft,
-                Offset(currentCropRect.right, currentCropRect.top),
-                Offset(currentCropRect.left, currentCropRect.bottom),
-                currentCropRect.bottomRight
+                cropRect.topLeft,
+                Offset(cropRect.right, cropRect.top),
+                Offset(cropRect.left, cropRect.bottom),
+                cropRect.bottomRight
             ).forEach { corner ->
                 drawCircle(
                     color = Color.White,
@@ -573,48 +701,48 @@ fun SelectionOverlay(
             drawLine(
                 color = lineColor,
                 start = Offset(
-                    currentCropRect.left + currentCropRect.width / 3f,
-                    currentCropRect.top
+                    cropRect.left + cropRect.width / 3f,
+                    cropRect.top
                 ),
                 end = Offset(
-                    currentCropRect.left + currentCropRect.width / 3f,
-                    currentCropRect.bottom
+                    cropRect.left + cropRect.width / 3f,
+                    cropRect.bottom
                 ),
                 strokeWidth = lineWidth
             )
             drawLine(
                 color = lineColor,
                 start = Offset(
-                    currentCropRect.left + currentCropRect.width * 2f / 3f,
-                    currentCropRect.top
+                    cropRect.left + cropRect.width * 2f / 3f,
+                    cropRect.top
                 ),
                 end = Offset(
-                    currentCropRect.left + currentCropRect.width * 2f / 3f,
-                    currentCropRect.bottom
+                    cropRect.left + cropRect.width * 2f / 3f,
+                    cropRect.bottom
                 ),
                 strokeWidth = lineWidth
             )
             drawLine(
                 color = lineColor,
                 start = Offset(
-                    currentCropRect.left,
-                    currentCropRect.top + currentCropRect.height / 3f
+                    cropRect.left,
+                    cropRect.top + cropRect.height / 3f
                 ),
                 end = Offset(
-                    currentCropRect.right,
-                    currentCropRect.top + currentCropRect.height / 3f
+                    cropRect.right,
+                    cropRect.top + cropRect.height / 3f
                 ),
                 strokeWidth = lineWidth
             )
             drawLine(
                 color = lineColor,
                 start = Offset(
-                    currentCropRect.left,
-                    currentCropRect.top + currentCropRect.height * 2f / 3f
+                    cropRect.left,
+                    cropRect.top + cropRect.height * 2f / 3f
                 ),
                 end = Offset(
-                    currentCropRect.right,
-                    currentCropRect.top + currentCropRect.height * 2f / 3f
+                    cropRect.right,
+                    cropRect.top + cropRect.height * 2f / 3f
                 ),
                 strokeWidth = lineWidth
             )
@@ -651,7 +779,6 @@ fun resizeCropRect(
     rect: Rect,
     handle: ResizeHandle,
     dragAmount: Offset,
-    viewSize: IntSize,
     aspectRatioMode: AspectRatioMode,
     videoBounds: Rect
 ): Rect {

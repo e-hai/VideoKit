@@ -82,6 +82,8 @@ dependencies {
     implementation libs.androidx.media3.datasource
     // 多个媒体库中通用的功能
     implementation libs.androidx.media3.common
+    // 媒体播放组件的通用功能
+    implementation libs.androidx.media3.ui.compose
 
 
     // Compose dependencies
