@@ -157,7 +157,9 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
 
                     // 比例模式选择器
                     Surface(
-                        modifier = Modifier.padding(top = 3.dp),
+                        modifier = Modifier
+                            .height(45.dp)
+                            .padding(top = 3.dp),
                         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
                         shape = MaterialTheme.shapes.small
                     ) {
@@ -330,8 +332,7 @@ fun HorizontalVerticalPreview(videoUri: Uri, previewInfo: PreviewInfo) {
     Box(
         modifier = Modifier
             .size(viewSize.width, viewSize.height)
-            .clip(RectangleShape)
-            .background(Color.Blue),
+            .clip(RectangleShape),
     ) {
         AndroidView(
             factory = { context ->
@@ -394,10 +395,12 @@ fun calculateCropParameters(width: Float, height: Float, previewInfo: PreviewInf
 // 裁剪比例模式枚举
 enum class AspectRatioMode(val displayName: String, val ratio: Float?) {
     FREE("自由", null),
-    RATIO_3_4("3:4", 3f / 4f),
-    RATIO_4_3("4:3", 4f / 3f),
-    RATIO_9_16("9:16", 9f / 16f),
-    RATIO_16_9("16:9", 16f / 9f)
+//    RATIO_3_4("3:4", 3f / 4f),
+//    RATIO_4_3("4:3", 4f / 3f),
+//    RATIO_9_16("9:16", 9f / 16f),
+//    RATIO_16_9("16:9", 16f / 9f),
+    RATIO_111_241("111:241", 111f / 241f),
+    RATIO_193_89("193:89", 193f / 89f),
 }
 
 /**
