@@ -49,7 +49,7 @@ class EditorActivity : ComponentActivity() {
         setContent {
             VideoKitTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    VideoPickerScreen(modifier = Modifier.padding(innerPadding))
+                    VideoEditorScreen(modifier = Modifier.padding(innerPadding))
                 }
             }
         }

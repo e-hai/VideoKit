@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -57,6 +58,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -67,23 +69,44 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import androidx.media3.ui.compose.PlayerSurface
-import androidx.media3.ui.compose.SURFACE_TYPE_SURFACE_VIEW
-import androidx.media3.ui.compose.SURFACE_TYPE_TEXTURE_VIEW
-import androidx.media3.ui.compose.modifiers.resizeWithContentScale
-import androidx.media3.ui.compose.state.rememberPresentationState
+import kotlinx.coroutines.delay
+
+data class VideoPickerInfo(
+    val videoUri: Uri,
+    val cropInfo: CropInfo
+)
 
 // 裁剪信息数据类
-data class PreviewInfo(
-    val previewRect: Rect,        // 用户选择的显示区域（相对于视频原始尺寸的归一化坐标）
-    val videoSize: IntSize        // 视频原始尺寸（像素）
+data class CropInfo(
+    val cropRect: Rect,        // 用户选择的裁剪区域（相对于视频原始尺寸的像素坐标）
+    val videoSize: IntSize     // 视频原始尺寸（像素）
 )
+
+@Composable
+fun VideoEditorScreen(
+    modifier: Modifier = Modifier,
+) {
+    var openFullScreen by remember { mutableStateOf(false) }
+    var videoPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        if (openFullScreen) {
+            videoPickerInfo?.let { info ->
+                FullScreenPreview(info.videoUri, info.cropInfo)
+            }
+        } else {
+            VideoPickerScreen(onClickFullScreen = { info ->
+                videoPickerInfo = info
+                openFullScreen = true
+            })
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VideoPickerScreen(modifier: Modifier = Modifier) {
+fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
 
     var openSheet by remember { mutableStateOf(false) }
 
@@ -96,7 +119,7 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
     }
 
     Column(
-        modifier = modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -120,7 +143,7 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
             var aspectRatioMode by remember { mutableStateOf(AspectRatioMode.FREE) }
 
             // 用于存储裁剪信息的变量
-            var previewInfo by remember { mutableStateOf<PreviewInfo?>(null) }
+            var cropInfo by remember { mutableStateOf<CropInfo?>(null) }
 
             Box(
                 modifier = Modifier
@@ -131,7 +154,7 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
                 CropVideoPlayer(
                     videoUri = selectedVideoUri!!,
                     aspectRatioMode = aspectRatioMode,
-                    onCropInfoChange = { previewInfo = it } // 接收完整的裁剪信息
+                    onCropInfoChange = { cropInfo = it } // 接收完整的裁剪信息
                 )
 
                 Column(
@@ -223,14 +246,21 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
                                 contentAlignment = Alignment.Center
                             ) {
                                 selectedVideoUri?.let { uri ->
-                                    previewInfo?.let { info ->
+                                    cropInfo?.let { info ->
                                         HorizontalVerticalPreview(uri, info)
                                     }
                                 }
                             }
 
                             Button(
-                                onClick = {},
+                                onClick = {
+                                    openSheet = false
+                                    selectedVideoUri?.let { uri ->
+                                        cropInfo?.let { info ->
+                                            onClickFullScreen(VideoPickerInfo(uri, info))
+                                        }
+                                    }
+                                },
                                 modifier = Modifier
                                     .width(343.dp)
                                     .height(66.dp),
@@ -269,7 +299,82 @@ fun VideoPickerScreen(modifier: Modifier = Modifier) {
  * **/
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-fun FullScreenPreview(videoUri: Uri, previewInfo: PreviewInfo) {
+fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
+    Log.d("FullScreenPreview", "videoUri: $videoUri")
+    val context = LocalContext.current
+    // 跟踪视频是否已准备好
+    var videoReady by remember { mutableStateOf(false) }
+    var currentVideoSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // 创建并记住ExoPlayer实例
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            setMediaItem(MediaItem.fromUri(videoUri))
+            prepare()
+            playWhenReady = true
+            repeatMode = Player.REPEAT_MODE_ONE
+
+            // 监听视频尺寸变化
+            addListener(object : Player.Listener {
+                override fun onVideoSizeChanged(size: VideoSize) {
+                    currentVideoSize = IntSize(size.width, size.height)
+                    videoReady = size.width > 0 && size.height > 0
+                }
+            })
+        }
+    }
+
+    // 当视频URI改变时重新加载视频并重置状态
+    LaunchedEffect(videoUri) {
+        videoReady = false
+        currentVideoSize = IntSize.Zero
+        exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
+        exoPlayer.prepare()
+        exoPlayer.play()
+    }
+
+    // 组件销毁时释放ExoPlayer资源
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+    ) {
+        AndroidView(
+            factory = { context ->
+                TextureView(context).also {
+                    exoPlayer.setVideoTextureView(it)
+                }
+            },
+            update = { view ->
+                // 只有当视频准备好且view有尺寸时才应用变换
+                if (videoReady && view.width > 0 && view.height > 0) {
+                    val cropParameters = calculateCropParameters(
+                        view.width.toFloat(),
+                        view.height.toFloat(),
+                        cropInfo
+                    )
+
+                    val matrix = Matrix()
+
+                    // 应用裁剪变换：先缩放，再平移
+                    val pivotX = view.width / 2f
+                    val pivotY = view.height / 2f
+
+                    matrix.postScale(cropParameters.scaleX, cropParameters.scaleY, pivotX, pivotY)
+                    matrix.postTranslate(cropParameters.translationX, cropParameters.translationY)
+
+                    view.setTransform(matrix)
+                }
+            },
+            modifier = Modifier.fillMaxSize()
+        )
+    }
 }
 
 /**
@@ -277,7 +382,7 @@ fun FullScreenPreview(videoUri: Uri, previewInfo: PreviewInfo) {
  * **/
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-fun HorizontalVerticalPreview(videoUri: Uri, previewInfo: PreviewInfo) {
+fun HorizontalVerticalPreview(videoUri: Uri, cropInfo: CropInfo) {
     val context = LocalContext.current
 
     // 创建并记住ExoPlayer实例
@@ -304,28 +409,14 @@ fun HorizontalVerticalPreview(videoUri: Uri, previewInfo: PreviewInfo) {
         }
     }
 
-    // 使用裁剪区域的比例，而不是视频显示区域的比例
-    val viewMaxSize = 200.dp
-    val viewRatio = (previewInfo.previewRect.width * previewInfo.videoSize.width) /
-            (previewInfo.previewRect.height * previewInfo.videoSize.height)
-    val viewSize = if (viewRatio > 1f) {
+    val cropRatio = cropInfo.cropRect.width / cropInfo.cropRect.height
+
+    val viewSize = if (cropRatio > 1) {
         // 横向视频
-        DpSize(viewMaxSize, viewMaxSize / viewRatio)
+        DpSize(193.dp, 89.dp)
     } else {
         // 纵向视频
-        DpSize(viewMaxSize * viewRatio, viewMaxSize)
-    }
-
-    // 计算裁剪参数
-    val density = LocalDensity.current
-    val cropParams = remember(previewInfo) {
-        val width = with(density) {
-            viewSize.width.toPx()
-        }
-        val height = with(density) {
-            viewSize.height.toPx()
-        }
-        calculateCropParameters(width, height, previewInfo)
+        DpSize(111.dp, 241.dp)
     }
 
 
@@ -334,6 +425,7 @@ fun HorizontalVerticalPreview(videoUri: Uri, previewInfo: PreviewInfo) {
             .size(viewSize.width, viewSize.height)
             .clip(RectangleShape),
     ) {
+
         AndroidView(
             factory = { context ->
                 TextureView(context).also {
@@ -341,19 +433,33 @@ fun HorizontalVerticalPreview(videoUri: Uri, previewInfo: PreviewInfo) {
                 }
             },
             update = { view ->
+
+                val cropParameters = calculateCropParameters(
+                    view.width.toFloat(),
+                    view.height.toFloat(),
+                    cropInfo
+                )
+
                 val matrix = Matrix()
 
-                // 应用裁剪变换
+                // 应用裁剪变换：先缩放，再平移
                 val pivotX = view.width / 2f
                 val pivotY = view.height / 2f
 
-                matrix.postScale(cropParams.scaleX, cropParams.scaleY, pivotX, pivotY)
-                matrix.postTranslate(cropParams.translationX, cropParams.translationY)
+                matrix.postScale(cropParameters.scaleX, cropParameters.scaleY, pivotX, pivotY)
+                matrix.postTranslate(cropParameters.translationX, cropParameters.translationY)
 
                 view.setTransform(matrix)
             },
             modifier = Modifier.fillMaxSize()
         )
+
+        //辅助测试框
+//        Box(
+//            modifier = Modifier
+//                .fillMaxSize()
+//                .border(2.dp, Color.Red)
+//        )
     }
 }
 
@@ -370,32 +476,53 @@ data class CropParameters(
  * 计算裁剪参数
  * 将用户选择的裁剪区域转换为视频播放器的缩放和平移参数
  */
-fun calculateCropParameters(width: Float, height: Float, previewInfo: PreviewInfo): CropParameters {
-    val normalizedLeft = previewInfo.previewRect.left
-    val normalizedTop = previewInfo.previewRect.top
-    val normalizedWidth = previewInfo.previewRect.width
-    val normalizedHeight = previewInfo.previewRect.height
+fun calculateCropParameters(
+    viewWidth: Float,
+    viewHeight: Float,
+    cropInfo: CropInfo
+): CropParameters {
+    val cropRatio = cropInfo.cropRect.width / cropInfo.cropRect.height
 
-    // 缩放比例 = 放大以填充选框区域
-    val scaleX = 1f / normalizedWidth
-    val scaleY = 1f / normalizedHeight
+    var finalCropWidth: Float
+    var finalCropHeight: Float
+    if (viewWidth > viewHeight) {
+        finalCropHeight = viewHeight.toFloat()
+        finalCropWidth = finalCropHeight * cropRatio
+    } else {
+        finalCropWidth = viewWidth.toFloat()
+        finalCropHeight = finalCropWidth / cropRatio
+    }
 
-    // 裁剪区域中心点（归一化）
-    val centerX = normalizedLeft + normalizedWidth / 2f
-    val centerY = normalizedTop + normalizedHeight / 2f
+    val finalVideoWidth =
+        finalCropWidth / (cropInfo.cropRect.width / cropInfo.videoSize.width)
+    val finalVideoHeight =
+        finalCropHeight / (cropInfo.cropRect.height / cropInfo.videoSize.height)
 
-    // 偏移计算：将裁剪区域中心点对齐到视图中心
-    val translationX = (0.5f - centerX) * width * scaleX
-    val translationY = (0.5f - centerY) * height * scaleY
+    val finalCropLeft =
+        cropInfo.cropRect.left / (cropInfo.cropRect.width / finalCropWidth)
+    val finalCropTop =
+        cropInfo.cropRect.top / (cropInfo.cropRect.height / finalCropHeight)
 
-    return CropParameters(scaleX, scaleY, translationX, translationY)
+    val finalScaleX = finalVideoWidth / viewWidth
+    val finalScaleY = finalVideoHeight / viewHeight
+
+    // 计算偏移量，使裁剪区域居中显示
+    val finalCropCenterX = finalCropLeft + finalCropWidth / 2f
+    val finalCropCenterY = finalCropTop + finalCropHeight / 2f
+
+    // 计算视频中心点到裁剪区域中心点的向量，并考虑缩放因素
+    val translateX = (finalVideoWidth / 2f - finalCropCenterX)
+    val translateY = (finalVideoHeight / 2f - finalCropCenterY)
+
+    return CropParameters(finalScaleX, finalScaleY, translateX, translateY)
 }
 
 
 // 裁剪比例模式枚举
 enum class AspectRatioMode(val displayName: String, val ratio: Float?) {
     FREE("自由", null),
-//    RATIO_3_4("3:4", 3f / 4f),
+
+    //    RATIO_3_4("3:4", 3f / 4f),
 //    RATIO_4_3("4:3", 4f / 3f),
 //    RATIO_9_16("9:16", 9f / 16f),
 //    RATIO_16_9("16:9", 16f / 9f),
@@ -414,7 +541,7 @@ enum class AspectRatioMode(val displayName: String, val ratio: Float?) {
 fun CropVideoPlayer(
     videoUri: Uri,
     aspectRatioMode: AspectRatioMode,
-    onCropInfoChange: (PreviewInfo) -> Unit = {},
+    onCropInfoChange: (CropInfo) -> Unit = {},
 ) {
     val context = LocalContext.current
 
@@ -491,18 +618,19 @@ private fun calculateCropPreviewRect(
     videoSize: IntSize,
     cropRect: Rect,
     videoBounds: Rect
-): PreviewInfo {
+): CropInfo {
     val normalizedLeft = (cropRect.left - videoBounds.left) / videoBounds.width
     val normalizedTop = (cropRect.top - videoBounds.top) / videoBounds.height
     val normalizedWidth = cropRect.width / videoBounds.width
     val normalizedHeight = cropRect.height / videoBounds.height
     val previewRect = Rect(
-        normalizedLeft,
-        normalizedTop,
-        normalizedLeft + normalizedWidth,
-        normalizedTop + normalizedHeight
+        normalizedLeft * videoSize.width,
+        normalizedTop * videoSize.height,
+        (normalizedLeft + normalizedWidth) * videoSize.width,
+        (normalizedTop + normalizedHeight) * videoSize.height
     )
-    return PreviewInfo(previewRect, videoSize)
+    Log.d("VideoPickerScreen", "previewRect: $previewRect")
+    return CropInfo(previewRect, videoSize)
 }
 
 
@@ -581,7 +709,7 @@ fun SelectionOverlay(
     viewSize: IntSize,
     videoSize: IntSize,
     aspectRatioMode: AspectRatioMode,
-    onCropInfoChange: (PreviewInfo) -> Unit
+    onCropInfoChange: (CropInfo) -> Unit
 ) {
     var activeHandle by remember { mutableStateOf<ResizeHandle?>(null) }
     var isDraggingRect by remember { mutableStateOf(false) }
@@ -660,15 +788,25 @@ fun SelectionOverlay(
                                 }
 
                                 isDraggingRect -> {
+                                    // 确保coerceIn的参数顺序正确，避免IllegalArgumentException
+                                    val maxLeft =
+                                        (videoBounds.right - cropRect.width).coerceAtLeast(
+                                            videoBounds.left
+                                        )
+                                    val maxTop =
+                                        (videoBounds.bottom - cropRect.height).coerceAtLeast(
+                                            videoBounds.top
+                                        )
+
                                     val newLeft = (cropRect.left + dragAmount.x)
                                         .coerceIn(
                                             videoBounds.left,
-                                            videoBounds.right - cropRect.width
+                                            maxLeft
                                         )
                                     val newTop = (cropRect.top + dragAmount.y)
                                         .coerceIn(
                                             videoBounds.top,
-                                            videoBounds.bottom - cropRect.height
+                                            maxTop
                                         )
                                     val newRect = Rect(
                                         newLeft, newTop,
@@ -815,51 +953,59 @@ fun resizeCropRect(
     aspectRatioMode: AspectRatioMode,
     videoBounds: Rect
 ): Rect {
-    val minSize = 150f
+    val minSize = 200f // 减小最小尺寸以避免约束问题
     val ratio = aspectRatioMode.ratio
 
     // ===== 自由模式 =====
     if (ratio == null) {
         return when (handle) {
-            ResizeHandle.TOP_LEFT -> Rect(
-                left = (rect.left + dragAmount.x).coerceIn(videoBounds.left, rect.right - minSize),
-                top = (rect.top + dragAmount.y).coerceIn(videoBounds.top, rect.bottom - minSize),
-                right = rect.right,
-                bottom = rect.bottom
-            )
+            ResizeHandle.TOP_LEFT -> {
+                val maxLeft = (rect.right - minSize).coerceAtLeast(videoBounds.left)
+                val maxTop = (rect.bottom - minSize).coerceAtLeast(videoBounds.top)
 
-            ResizeHandle.TOP_RIGHT -> Rect(
-                left = rect.left,
-                top = (rect.top + dragAmount.y).coerceIn(videoBounds.top, rect.bottom - minSize),
-                right = (rect.right + dragAmount.x).coerceIn(
-                    rect.left + minSize,
-                    videoBounds.right
-                ),
-                bottom = rect.bottom
-            )
-
-            ResizeHandle.BOTTOM_LEFT -> Rect(
-                left = (rect.left + dragAmount.x).coerceIn(videoBounds.left, rect.right - minSize),
-                top = rect.top,
-                right = rect.right,
-                bottom = (rect.bottom + dragAmount.y).coerceIn(
-                    rect.top + minSize,
-                    videoBounds.bottom
+                Rect(
+                    left = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft),
+                    top = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop),
+                    right = rect.right,
+                    bottom = rect.bottom
                 )
-            )
+            }
 
-            ResizeHandle.BOTTOM_RIGHT -> Rect(
-                left = rect.left,
-                top = rect.top,
-                right = (rect.right + dragAmount.x).coerceIn(
-                    rect.left + minSize,
-                    videoBounds.right
-                ),
-                bottom = (rect.bottom + dragAmount.y).coerceIn(
-                    rect.top + minSize,
-                    videoBounds.bottom
+            ResizeHandle.TOP_RIGHT -> {
+                val maxTop = (rect.bottom - minSize).coerceAtLeast(videoBounds.top)
+                val minRight = (rect.left + minSize).coerceAtMost(videoBounds.right)
+
+                Rect(
+                    left = rect.left,
+                    top = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop),
+                    right = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right),
+                    bottom = rect.bottom
                 )
-            )
+            }
+
+            ResizeHandle.BOTTOM_LEFT -> {
+                val maxLeft = (rect.right - minSize).coerceAtLeast(videoBounds.left)
+                val minBottom = (rect.top + minSize).coerceAtMost(videoBounds.bottom)
+
+                Rect(
+                    left = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft),
+                    top = rect.top,
+                    right = rect.right,
+                    bottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
+                )
+            }
+
+            ResizeHandle.BOTTOM_RIGHT -> {
+                val minRight = (rect.left + minSize).coerceAtMost(videoBounds.right)
+                val minBottom = (rect.top + minSize).coerceAtMost(videoBounds.bottom)
+
+                Rect(
+                    left = rect.left,
+                    top = rect.top,
+                    right = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right),
+                    bottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
+                )
+            }
         }
     }
 
@@ -869,8 +1015,12 @@ fun resizeCropRect(
             val newRight = rect.right
             val newBottom = rect.bottom
 
-            var newLeft = (rect.left + dragAmount.x).coerceIn(videoBounds.left, newRight - minSize)
-            var newTop = (rect.top + dragAmount.y).coerceIn(videoBounds.top, newBottom - minSize)
+            // 确保范围正确
+            val maxLeft = (newRight - minSize).coerceAtLeast(videoBounds.left)
+            val maxTop = (newBottom - minSize).coerceAtLeast(videoBounds.top)
+
+            var newLeft = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft)
+            var newTop = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop)
 
             val width = newRight - newLeft
             val height = width / ratio
@@ -891,10 +1041,12 @@ fun resizeCropRect(
             val newLeft = rect.left
             val newBottom = rect.bottom
 
-            var newRight =
-                (rect.right + dragAmount.x).coerceIn(newLeft + minSize, videoBounds.right)
-            var newTop =
-                (rect.top + dragAmount.y).coerceIn(videoBounds.top, newBottom - minSize)
+            // 确保范围正确
+            val maxTop = (newBottom - minSize).coerceAtLeast(videoBounds.top)
+            val minRight = (newLeft + minSize).coerceAtMost(videoBounds.right)
+
+            var newRight = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right)
+            var newTop = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop)
 
             val width = newRight - newLeft
             val height = width / ratio
@@ -915,9 +1067,12 @@ fun resizeCropRect(
             val newRight = rect.right
             val newTop = rect.top
 
-            var newLeft = (rect.left + dragAmount.x).coerceIn(videoBounds.left, newRight - minSize)
-            var newBottom =
-                (rect.bottom + dragAmount.y).coerceIn(newTop + minSize, videoBounds.bottom)
+            // 确保范围正确
+            val maxLeft = (newRight - minSize).coerceAtLeast(videoBounds.left)
+            val minBottom = (newTop + minSize).coerceAtMost(videoBounds.bottom)
+
+            var newLeft = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft)
+            var newBottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
 
             val width = newRight - newLeft
             val height = width / ratio
@@ -938,10 +1093,12 @@ fun resizeCropRect(
             val newLeft = rect.left
             val newTop = rect.top
 
-            var newRight =
-                (rect.right + dragAmount.x).coerceIn(newLeft + minSize, videoBounds.right)
-            var newBottom =
-                (rect.bottom + dragAmount.y).coerceIn(newTop + minSize, videoBounds.bottom)
+            // 确保范围正确
+            val minRight = (newLeft + minSize).coerceAtMost(videoBounds.right)
+            val minBottom = (newTop + minSize).coerceAtMost(videoBounds.bottom)
+
+            var newRight = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right)
+            var newBottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
 
             val width = newRight - newLeft
             val height = width / ratio
