@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.kit.video.sample.editor
 
 import android.graphics.Matrix
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -217,66 +220,17 @@ fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
 
                 if (openSheet) {
                     // 显示半屏弹窗展示裁剪后的视频预览
-                    ModalBottomSheet(
+                    val uri = selectedVideoUri ?: return
+                    val info = cropInfo ?: return
+                    HorizontalVerticalPreview(
+                        uri,
+                        info,
                         onDismissRequest = { openSheet = false },
-                        sheetState = rememberModalBottomSheetState(
-                            skipPartiallyExpanded = true
-                        ),
-                        containerColor = Color.Black
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(439.dp)
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "裁剪预览",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = Color.White,
-                                modifier = Modifier.padding(bottom = 10.dp)
-                            )
-
-                            // 显示裁剪后的视频预览
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                selectedVideoUri?.let { uri ->
-                                    cropInfo?.let { info ->
-                                        HorizontalVerticalPreview(uri, info)
-                                    }
-                                }
-                            }
-
-                            Button(
-                                onClick = {
-                                    openSheet = false
-                                    selectedVideoUri?.let { uri ->
-                                        cropInfo?.let { info ->
-                                            onClickFullScreen(VideoPickerInfo(uri, info))
-                                        }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .width(343.dp)
-                                    .height(66.dp),
-                                shape = RoundedCornerShape(33.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFF4F4F5).copy(alpha = 0.5f)
-                                )
-                            ) {
-                                Text(
-                                    text = "全屏预览",
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
+                        onClickConfirm = {
+                            openSheet = false
+                            onClickFullScreen(VideoPickerInfo(uri, info))
                         }
-                    }
+                    )
                 }
             }
 
@@ -304,7 +258,6 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
     val context = LocalContext.current
     // 跟踪视频是否已准备好
     var videoReady by remember { mutableStateOf(false) }
-    var currentVideoSize by remember { mutableStateOf(IntSize.Zero) }
 
     // 创建并记住ExoPlayer实例
     val exoPlayer = remember {
@@ -317,7 +270,6 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
             // 监听视频尺寸变化
             addListener(object : Player.Listener {
                 override fun onVideoSizeChanged(size: VideoSize) {
-                    currentVideoSize = IntSize(size.width, size.height)
                     videoReady = size.width > 0 && size.height > 0
                 }
             })
@@ -327,7 +279,6 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
     // 当视频URI改变时重新加载视频并重置状态
     LaunchedEffect(videoUri) {
         videoReady = false
-        currentVideoSize = IntSize.Zero
         exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
         exoPlayer.prepare()
         exoPlayer.play()
@@ -354,7 +305,7 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
             update = { view ->
                 // 只有当视频准备好且view有尺寸时才应用变换
                 if (videoReady && view.width > 0 && view.height > 0) {
-                    val cropParameters = calculateCropParameters(
+                    val cropParameters = calculateVerticalCropParameters(
                         view.width.toFloat(),
                         view.height.toFloat(),
                         cropInfo
@@ -380,87 +331,192 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
 /**
  * 横屏/垂屏裁剪预览
  * **/
-@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-fun HorizontalVerticalPreview(videoUri: Uri, cropInfo: CropInfo) {
+fun HorizontalVerticalPreview(
+    videoUri: Uri,
+    cropInfo: CropInfo,
+    onDismissRequest: () -> Unit,
+    onClickConfirm: () -> Unit
+) {
     val context = LocalContext.current
 
-    // 创建并记住ExoPlayer实例
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUri))
-            prepare()
-            playWhenReady = true
-            repeatMode = Player.REPEAT_MODE_ONE
-        }
-    }
 
-    // 当视频URI改变时重新加载视频并重置状态
-    LaunchedEffect(videoUri) {
-        exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
-        exoPlayer.prepare()
-        exoPlayer.play()
-    }
-
-    // 组件销毁时释放ExoPlayer资源
-    DisposableEffect(Unit) {
-        onDispose {
-            exoPlayer.release()
-        }
-    }
-
-    val cropRatio = cropInfo.cropRect.width / cropInfo.cropRect.height
-
-    val viewSize = if (cropRatio > 1) {
-        // 横向视频
-        DpSize(193.dp, 89.dp)
-    } else {
-        // 纵向视频
-        DpSize(111.dp, 241.dp)
-    }
-
-
-    Box(
-        modifier = Modifier
-            .size(viewSize.width, viewSize.height)
-            .clip(RectangleShape),
+    ModalBottomSheet(
+        onDismissRequest = onDismissRequest,
+        sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true
+        ),
+        containerColor = Color.Black
     ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(439.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // 显示裁剪后的视频预览
+            Row(
+                modifier = Modifier
+                    .weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
 
-        AndroidView(
-            factory = { context ->
-                TextureView(context).also {
-                    exoPlayer.setVideoTextureView(it)
+                //竖屏
+                Box(
+                    modifier = Modifier
+                        .size(111.dp, 241.dp)
+                        .clip(RectangleShape),
+                ) {
+
+                    // 创建并记住ExoPlayer实例
+                    val exoPlayer = remember {
+                        ExoPlayer.Builder(context).build().apply {
+                            setMediaItem(MediaItem.fromUri(videoUri))
+                            prepare()
+                            playWhenReady = true
+                            repeatMode = Player.REPEAT_MODE_ONE
+                        }
+                    }
+
+                    // 当视频URI改变时重新加载视频并重置状态
+                    LaunchedEffect(videoUri) {
+                        exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
+                        exoPlayer.prepare()
+                        exoPlayer.play()
+                    }
+
+                    // 组件销毁时释放ExoPlayer资源
+                    DisposableEffect(Unit) {
+                        onDispose {
+                            exoPlayer.release()
+                        }
+                    }
+
+                    AndroidView(
+                        factory = { context ->
+                            TextureView(context).also {
+                                exoPlayer.setVideoTextureView(it)
+                            }
+                        },
+                        update = { view ->
+
+                            val cropParameters = calculateVerticalCropParameters(
+                                view.width.toFloat(),
+                                view.height.toFloat(),
+                                cropInfo
+                            )
+
+                            val matrix = Matrix()
+
+                            // 应用裁剪变换：先缩放，再平移
+                            val pivotX = view.width / 2f
+                            val pivotY = view.height / 2f
+
+                            matrix.postScale(
+                                cropParameters.scaleX,
+                                cropParameters.scaleY,
+                                pivotX,
+                                pivotY
+                            )
+                            matrix.postTranslate(
+                                cropParameters.translationX,
+                                cropParameters.translationY
+                            )
+
+                            view.setTransform(matrix)
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
                 }
-            },
-            update = { view ->
 
-                val cropParameters = calculateCropParameters(
-                    view.width.toFloat(),
-                    view.height.toFloat(),
-                    cropInfo
+                Spacer(modifier = Modifier.width(16.dp))
+
+                //横屏
+                Column {
+                    // 创建并记住ExoPlayer实例
+                    val exoPlayer = remember {
+                        ExoPlayer.Builder(context).build().apply {
+                            setMediaItem(MediaItem.fromUri(videoUri))
+                            prepare()
+                            playWhenReady = true
+                            repeatMode = Player.REPEAT_MODE_ONE
+                        }
+                    }
+
+                    // 当视频URI改变时重新加载视频并重置状态
+                    LaunchedEffect(videoUri) {
+                        exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
+                        exoPlayer.prepare()
+                        exoPlayer.play()
+                    }
+
+                    // 组件销毁时释放ExoPlayer资源
+                    DisposableEffect(Unit) {
+                        onDispose {
+                            exoPlayer.release()
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(193.dp, 89.dp)
+                            .clip(RectangleShape),
+                    ) {
+                        AndroidView(
+                            factory = { context ->
+                                TextureView(context).also {
+                                    exoPlayer.setVideoTextureView(it)
+                                }
+                            },
+                            update = { view ->
+
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { },
+                        modifier = Modifier.size(193.dp, 32.dp),
+                        shape = RoundedCornerShape(33.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFF4F4F5)
+                        )
+                    ) {
+                        Text(
+                            text = "Landscape Mode Settings",
+                            fontSize = 10.sp,
+                            color = Color(0xFF2B62FF)
+                        )
+                    }
+                }
+            }
+
+            Button(
+                onClick = {
+                    onClickConfirm()
+                },
+                modifier = Modifier
+                    .width(343.dp)
+                    .height(66.dp),
+                shape = RoundedCornerShape(33.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFF4F4F5).copy(alpha = 0.5f)
                 )
+            ) {
+                Text(
+                    text = "Confirm",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
 
-                val matrix = Matrix()
-
-                // 应用裁剪变换：先缩放，再平移
-                val pivotX = view.width / 2f
-                val pivotY = view.height / 2f
-
-                matrix.postScale(cropParameters.scaleX, cropParameters.scaleY, pivotX, pivotY)
-                matrix.postTranslate(cropParameters.translationX, cropParameters.translationY)
-
-                view.setTransform(matrix)
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        //辅助测试框
-//        Box(
-//            modifier = Modifier
-//                .fillMaxSize()
-//                .border(2.dp, Color.Red)
-//        )
+            Spacer(modifier = Modifier.height(46.dp))
+        }
     }
+
 }
 
 
@@ -476,39 +532,50 @@ data class CropParameters(
  * 计算裁剪参数
  * 将用户选择的裁剪区域转换为视频播放器的缩放和平移参数
  */
-fun calculateCropParameters(
+fun calculateVerticalCropParameters(
     viewWidth: Float,
     viewHeight: Float,
     cropInfo: CropInfo
 ): CropParameters {
+    Log.d("CropVideoPlayer", "viewWidth: $viewWidth, viewHeight: $viewHeight")
+
     val cropRatio = cropInfo.cropRect.width / cropInfo.cropRect.height
 
     var finalCropWidth: Float
     var finalCropHeight: Float
-    if (viewWidth > viewHeight) {
-        finalCropHeight = viewHeight.toFloat()
-        finalCropWidth = finalCropHeight * cropRatio
-    } else {
-        finalCropWidth = viewWidth.toFloat()
-        finalCropHeight = finalCropWidth / cropRatio
-    }
+
+    finalCropWidth = viewWidth
+    finalCropHeight = finalCropWidth / cropRatio
+
 
     val finalVideoWidth =
         finalCropWidth / (cropInfo.cropRect.width / cropInfo.videoSize.width)
     val finalVideoHeight =
         finalCropHeight / (cropInfo.cropRect.height / cropInfo.videoSize.height)
 
+    Log.d(
+        "CropVideoPlayer",
+        "finalVideoWidth: $finalVideoWidth, finalVideoHeight: $finalVideoHeight"
+    )
     val finalCropLeft =
         cropInfo.cropRect.left / (cropInfo.cropRect.width / finalCropWidth)
     val finalCropTop =
         cropInfo.cropRect.top / (cropInfo.cropRect.height / finalCropHeight)
 
+    Log.d(
+        "CropVideoPlayer", "finalCropLeft: $finalCropLeft, finalCropTop: $finalCropTop"
+    )
     val finalScaleX = finalVideoWidth / viewWidth
     val finalScaleY = finalVideoHeight / viewHeight
 
     // 计算偏移量，使裁剪区域居中显示
     val finalCropCenterX = finalCropLeft + finalCropWidth / 2f
     val finalCropCenterY = finalCropTop + finalCropHeight / 2f
+
+    Log.d(
+        "CropVideoPlayer",
+        "finalCropCenterX: $finalCropCenterX, finalCropCenterY: $finalCropCenterY"
+    )
 
     // 计算视频中心点到裁剪区域中心点的向量，并考虑缩放因素
     val translateX = (finalVideoWidth / 2f - finalCropCenterX)
