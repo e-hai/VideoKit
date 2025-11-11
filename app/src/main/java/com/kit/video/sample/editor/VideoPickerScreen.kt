@@ -18,9 +18,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -52,17 +54,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.drawscope.DrawStyle
+import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,7 +74,6 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
-import kotlinx.coroutines.delay
 
 data class VideoPickerInfo(
     val videoUri: Uri,
@@ -111,8 +111,6 @@ fun VideoEditorScreen(
 @Composable
 fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
 
-    var openSheet by remember { mutableStateOf(false) }
-
     var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
 
     val videoPickerLauncher = rememberLauncherForActivityResult(
@@ -141,12 +139,12 @@ fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
                 modifier = Modifier.padding(top = 8.dp)
             )
         } else {
-
-            // 裁剪比例模式 - 用户选择的比例模式（自由、16:9等）
-            var aspectRatioMode by remember { mutableStateOf(AspectRatioMode.FREE) }
-
+            // 首次选择的视频
+            val videoUri = selectedVideoUri ?: return
             // 用于存储裁剪信息的变量
-            var cropInfo by remember { mutableStateOf<CropInfo?>(null) }
+            var pickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
+
+            var openSheet by remember { mutableStateOf(false) }
 
             Box(
                 modifier = Modifier
@@ -154,95 +152,78 @@ fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
                     .weight(1f)
             ) {
 
-                CropVideoPlayer(
-                    videoUri = selectedVideoUri!!,
-                    aspectRatioMode = aspectRatioMode,
-                    onCropInfoChange = { cropInfo = it } // 接收完整的裁剪信息
-                )
-
-                Column(
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 10.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // 提示文字
-                    Surface(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Text(
-                            text = if (aspectRatioMode == AspectRatioMode.FREE)
-                                "拖动移动 • 拖动角点调整大小"
-                            else
-                                "拖动移动 • 拖动角点调整大小 (保持${aspectRatioMode.displayName}比例)",
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-
-                    // 比例模式选择器
-                    Surface(
-                        modifier = Modifier
-                            .height(45.dp)
-                            .padding(top = 3.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                        shape = MaterialTheme.shapes.small
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AspectRatioMode.entries.forEach { mode ->
-                                FilterChip(
-                                    selected = aspectRatioMode == mode,
-                                    onClick = {
-                                        aspectRatioMode = mode
-                                    },
-                                    label = { Text(mode.displayName) }
-                                )
-                            }
-                        }
-                    }
-                }
-
-
-                FloatingActionButton(
-                    onClick = {
+                VerticalCropVideoPlayer(
+                    videoUri,
+                    onSelectOtherVideo = {
+                        videoPickerLauncher.launch("video/*")
+                    },
+                    onClickOpenSheet = {
                         openSheet = true
                     },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(16.dp)
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = "确认")
-                }
+                    onCropInfoChange = {
+                        pickerInfo = VideoPickerInfo(videoUri, it)
+                    })
 
                 if (openSheet) {
                     // 显示半屏弹窗展示裁剪后的视频预览
-                    val uri = selectedVideoUri ?: return
-                    val info = cropInfo ?: return
+                    val verticalInfo = pickerInfo ?: return
+                    val horizontalInfo = pickerInfo ?: return
                     HorizontalVerticalPreview(
-                        uri,
-                        info,
+                        verticalInfo,
+                        horizontalInfo,
                         onDismissRequest = { openSheet = false },
+                        onClickLandscapeModeSettings = {
+                        },
                         onClickConfirm = {
-                            openSheet = false
-                            onClickFullScreen(VideoPickerInfo(uri, info))
                         }
                     )
                 }
             }
+        }
+    }
+}
 
-            Row(
-                modifier = Modifier.padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+@Composable
+fun VerticalCropVideoPlayer(
+    videoUri: Uri,
+    onSelectOtherVideo: () -> Unit,
+    onClickOpenSheet: () -> Unit,
+    onCropInfoChange: (CropInfo) -> Unit = {}
+) {
+
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            CropVideoPlayer(
+                videoUri = videoUri,
+                aspectRatioMode = AspectRatioMode.RATIO_111_241,
+                onCropInfoChange = onCropInfoChange
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .height(60.dp),
+        ) {
+            Button(
+                modifier = Modifier.align(Alignment.CenterStart),
+                onClick = { onSelectOtherVideo() }
             ) {
-                Button(
-                    onClick = { videoPickerLauncher.launch("video/*") }
-                ) {
-                    Text("选择其他视频")
-                }
+                Text("选择其他视频")
+            }
+
+            FloatingActionButton(
+                onClick = {
+                    onClickOpenSheet()
+                },
+                modifier = Modifier.align(Alignment.CenterEnd),
+            ) {
+                Icon(Icons.Default.Check, contentDescription = "确认")
             }
         }
     }
@@ -254,7 +235,6 @@ fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
-    Log.d("FullScreenPreview", "videoUri: $videoUri")
     val context = LocalContext.current
     // 跟踪视频是否已准备好
     var videoReady by remember { mutableStateOf(false) }
@@ -305,20 +285,11 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
             update = { view ->
                 // 只有当视频准备好且view有尺寸时才应用变换
                 if (videoReady && view.width > 0 && view.height > 0) {
-                    val cropParameters = calculateVerticalCropParameters(
+                    val matrix = calculatePreviewMatrix(
                         view.width.toFloat(),
                         view.height.toFloat(),
                         cropInfo
                     )
-
-                    val matrix = Matrix()
-
-                    // 应用裁剪变换：先缩放，再平移
-                    val pivotX = view.width / 2f
-                    val pivotY = view.height / 2f
-
-                    matrix.postScale(cropParameters.scaleX, cropParameters.scaleY, pivotX, pivotY)
-                    matrix.postTranslate(cropParameters.translationX, cropParameters.translationY)
 
                     view.setTransform(matrix)
                 }
@@ -333,13 +304,13 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
  * **/
 @Composable
 fun HorizontalVerticalPreview(
-    videoUri: Uri,
-    cropInfo: CropInfo,
+    horizontalInfo: VideoPickerInfo,
+    verticalInfo: VideoPickerInfo,
     onDismissRequest: () -> Unit,
+    onClickLandscapeModeSettings: () -> Unit,
     onClickConfirm: () -> Unit
 ) {
     val context = LocalContext.current
-
 
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
@@ -367,7 +338,8 @@ fun HorizontalVerticalPreview(
                         .size(111.dp, 241.dp)
                         .clip(RectangleShape),
                 ) {
-
+                    val videoUri = verticalInfo.videoUri
+                    val cropInfo = verticalInfo.cropInfo
                     // 创建并记住ExoPlayer实例
                     val exoPlayer = remember {
                         ExoPlayer.Builder(context).build().apply {
@@ -400,39 +372,36 @@ fun HorizontalVerticalPreview(
                         },
                         update = { view ->
 
-                            val cropParameters = calculateVerticalCropParameters(
+                            val matrix = calculatePreviewMatrix(
                                 view.width.toFloat(),
                                 view.height.toFloat(),
                                 cropInfo
-                            )
-
-                            val matrix = Matrix()
-
-                            // 应用裁剪变换：先缩放，再平移
-                            val pivotX = view.width / 2f
-                            val pivotY = view.height / 2f
-
-                            matrix.postScale(
-                                cropParameters.scaleX,
-                                cropParameters.scaleY,
-                                pivotX,
-                                pivotY
-                            )
-                            matrix.postTranslate(
-                                cropParameters.translationX,
-                                cropParameters.translationY
                             )
 
                             view.setTransform(matrix)
                         },
                         modifier = Modifier.fillMaxSize()
                     )
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(193f / 89f)
+                            .border(2.dp, Color.Green)
+                            .align(Alignment.Center)
+                    )
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
 
                 //横屏
-                Column {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterVertically)
+                ) {
+
+                    val videoUri = horizontalInfo.videoUri
+                    val cropInfo = horizontalInfo.cropInfo
                     // 创建并记住ExoPlayer实例
                     val exoPlayer = remember {
                         ExoPlayer.Builder(context).build().apply {
@@ -469,7 +438,13 @@ fun HorizontalVerticalPreview(
                                 }
                             },
                             update = { view ->
+                                val matrix = calculatePreviewMatrix(
+                                    view.width.toFloat(),
+                                    view.height.toFloat(),
+                                    cropInfo
+                                )
 
+                                view.setTransform(matrix)
                             },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -478,7 +453,9 @@ fun HorizontalVerticalPreview(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Button(
-                        onClick = { },
+                        onClick = {
+                            onClickLandscapeModeSettings()
+                        },
                         modifier = Modifier.size(193.dp, 32.dp),
                         shape = RoundedCornerShape(33.dp),
                         colors = ButtonDefaults.buttonColors(
@@ -516,55 +493,34 @@ fun HorizontalVerticalPreview(
             Spacer(modifier = Modifier.height(46.dp))
         }
     }
-
 }
 
-
-// 裁剪参数数据类
-data class CropParameters(
-    val scaleX: Float,
-    val scaleY: Float,
-    val translationX: Float,
-    val translationY: Float
-)
 
 /**
  * 计算裁剪参数
  * 将用户选择的裁剪区域转换为视频播放器的缩放和平移参数
  */
-fun calculateVerticalCropParameters(
+fun calculatePreviewMatrix(
     viewWidth: Float,
     viewHeight: Float,
     cropInfo: CropInfo
-): CropParameters {
-    Log.d("CropVideoPlayer", "viewWidth: $viewWidth, viewHeight: $viewHeight")
+): Matrix {
 
     val cropRatio = cropInfo.cropRect.width / cropInfo.cropRect.height
 
-    var finalCropWidth: Float
-    var finalCropHeight: Float
-
-    finalCropWidth = viewWidth
-    finalCropHeight = finalCropWidth / cropRatio
-
+    val finalCropWidth: Float = viewWidth
+    val finalCropHeight: Float = finalCropWidth / cropRatio
 
     val finalVideoWidth =
         finalCropWidth / (cropInfo.cropRect.width / cropInfo.videoSize.width)
     val finalVideoHeight =
         finalCropHeight / (cropInfo.cropRect.height / cropInfo.videoSize.height)
 
-    Log.d(
-        "CropVideoPlayer",
-        "finalVideoWidth: $finalVideoWidth, finalVideoHeight: $finalVideoHeight"
-    )
     val finalCropLeft =
         cropInfo.cropRect.left / (cropInfo.cropRect.width / finalCropWidth)
     val finalCropTop =
         cropInfo.cropRect.top / (cropInfo.cropRect.height / finalCropHeight)
 
-    Log.d(
-        "CropVideoPlayer", "finalCropLeft: $finalCropLeft, finalCropTop: $finalCropTop"
-    )
     val finalScaleX = finalVideoWidth / viewWidth
     val finalScaleY = finalVideoHeight / viewHeight
 
@@ -572,16 +528,28 @@ fun calculateVerticalCropParameters(
     val finalCropCenterX = finalCropLeft + finalCropWidth / 2f
     val finalCropCenterY = finalCropTop + finalCropHeight / 2f
 
-    Log.d(
-        "CropVideoPlayer",
-        "finalCropCenterX: $finalCropCenterX, finalCropCenterY: $finalCropCenterY"
-    )
-
     // 计算视频中心点到裁剪区域中心点的向量，并考虑缩放因素
     val translateX = (finalVideoWidth / 2f - finalCropCenterX)
     val translateY = (finalVideoHeight / 2f - finalCropCenterY)
 
-    return CropParameters(finalScaleX, finalScaleY, translateX, translateY)
+    val matrix = Matrix()
+
+    // 应用裁剪变换：先缩放，再平移
+    val pivotX = viewWidth / 2f
+    val pivotY = viewHeight / 2f
+
+    matrix.postScale(
+        finalScaleX,
+        finalScaleY,
+        pivotX,
+        pivotY
+    )
+    matrix.postTranslate(
+        translateX,
+        translateY
+    )
+
+    return matrix
 }
 
 
@@ -897,25 +865,17 @@ fun SelectionOverlay(
                 }
         ) {
             // 绘制暗色蒙层
-            drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset.Zero,
-                size = Size(size.width, cropRect.top)
-            )
-            drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(0f, cropRect.top),
-                size = Size(cropRect.left, cropRect.height)
-            )
-            drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(cropRect.right, cropRect.top),
-                size = Size(size.width - cropRect.right, cropRect.height)
-            )
-            drawRect(
-                color = Color.Black.copy(alpha = 0.5f),
-                topLeft = Offset(0f, cropRect.bottom),
-                size = Size(size.width, size.height - cropRect.bottom)
+            val path = Path().apply {
+                // 添加整个画布区域
+                addRect(Rect(0f, 0f, size.width, size.height))
+                // 添加裁剪区域
+                addRect(cropRect, Path.Direction.Clockwise)
+            }
+
+            drawPath(
+                path = path,
+                color = Color.Black.copy(alpha = 0.8f),
+                style = Fill,
             )
 
             // 绘制选框边框
