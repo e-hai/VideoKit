@@ -2,11 +2,13 @@
 
 package com.kit.video.sample.editor
 
+import android.annotation.SuppressLint
 import android.graphics.Matrix
 import android.graphics.SurfaceTexture
 import android.net.Uri
 import android.util.Log
 import android.view.TextureView
+import android.view.View
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -15,6 +17,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,8 +51,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -59,16 +64,21 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.drawscope.DrawStyle
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
@@ -91,16 +101,16 @@ fun VideoEditorScreen(
     modifier: Modifier = Modifier,
 ) {
     var openFullScreen by remember { mutableStateOf(false) }
-    var videoPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
+    var verticalPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
+    var horizontalPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
 
     Box(modifier = modifier.fillMaxSize()) {
         if (openFullScreen) {
-            videoPickerInfo?.let { info ->
-                FullScreenPreview(info.videoUri, info.cropInfo)
-            }
+            FullScreenPreview(verticalPickerInfo ?: return, horizontalPickerInfo ?: return)
         } else {
-            VideoPickerScreen(onClickFullScreen = { info ->
-                videoPickerInfo = info
+            VideoPickerScreen(onClickFullScreen = { vertical, horizontal ->
+                verticalPickerInfo = vertical
+                horizontalPickerInfo = horizontal
                 openFullScreen = true
             })
         }
@@ -109,24 +119,38 @@ fun VideoEditorScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
+fun VideoPickerScreen(onClickFullScreen: (verticalPickerInfo: VideoPickerInfo, horizontalPickerInfo: VideoPickerInfo) -> Unit) {
 
-    var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
+    var verticalVideoUri by remember { mutableStateOf<Uri?>(null) }
+    var horizontalVideoUri by remember { mutableStateOf<Uri?>(null) }
 
-    val videoPickerLauncher = rememberLauncherForActivityResult(
+    val verticalPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        selectedVideoUri = uri
+        verticalVideoUri = uri
     }
+    val horizontalPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        horizontalVideoUri = uri
+    }
+
+    var verticalPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
+    var horizontalPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
+
+    var selectVertical by remember { mutableStateOf(true) }
+
+    var openSheet by remember { mutableStateOf(false) }
+
 
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        if (selectedVideoUri == null) {
+        if (verticalVideoUri == null) {
             Button(
-                onClick = { videoPickerLauncher.launch("video/*") },
+                onClick = { verticalPickerLauncher.launch("video/*") },
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text("从相册选择视频")
@@ -139,42 +163,57 @@ fun VideoPickerScreen(onClickFullScreen: (info: VideoPickerInfo) -> Unit) {
                 modifier = Modifier.padding(top = 8.dp)
             )
         } else {
-            // 首次选择的视频
-            val videoUri = selectedVideoUri ?: return
-            // 用于存储裁剪信息的变量
-            var pickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
-
-            var openSheet by remember { mutableStateOf(false) }
 
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .weight(1f)
             ) {
-
-                VerticalCropVideoPlayer(
-                    videoUri,
-                    onSelectOtherVideo = {
-                        videoPickerLauncher.launch("video/*")
-                    },
-                    onClickOpenSheet = {
-                        openSheet = true
-                    },
-                    onCropInfoChange = {
-                        pickerInfo = VideoPickerInfo(videoUri, it)
-                    })
+                if (selectVertical) {
+                    val videoUri = verticalVideoUri ?: return
+                    VerticalCropVideoPlayer(
+                        videoUri,
+                        onSelectOtherVideo = {
+                            verticalPickerLauncher.launch("video/*")
+                        },
+                        onClickOpenSheet = {
+                            openSheet = true
+                        },
+                        onCropInfoChange = {
+                            verticalPickerInfo = VideoPickerInfo(videoUri, it)
+                        })
+                } else {
+                    val videoUri = horizontalVideoUri ?: return
+                    HorizontalCropVideoPlayer(
+                        videoUri,
+                        onSelectOtherVideo = {
+                            horizontalPickerLauncher.launch("video/*")
+                        },
+                        onClickOpenSheet = {
+                            openSheet = true
+                        },
+                        onCropInfoChange = {
+                            horizontalPickerInfo = VideoPickerInfo(videoUri, it)
+                        }
+                    )
+                }
 
                 if (openSheet) {
                     // 显示半屏弹窗展示裁剪后的视频预览
-                    val verticalInfo = pickerInfo ?: return
-                    val horizontalInfo = pickerInfo ?: return
+                    val verticalInfo = verticalPickerInfo ?: return
+                    val horizontalInfo = horizontalPickerInfo ?: verticalInfo.copy()
+
                     HorizontalVerticalPreview(
                         verticalInfo,
                         horizontalInfo,
                         onDismissRequest = { openSheet = false },
                         onClickLandscapeModeSettings = {
+                            openSheet = false
+                            selectVertical = false
+                            horizontalPickerLauncher.launch("video/*")
                         },
                         onClickConfirm = {
+                            onClickFullScreen(verticalInfo, horizontalInfo)
                         }
                     )
                 }
@@ -229,73 +268,258 @@ fun VerticalCropVideoPlayer(
     }
 }
 
+@Composable
+fun HorizontalCropVideoPlayer(
+    videoUri: Uri,
+    onSelectOtherVideo: () -> Unit,
+    onClickOpenSheet: () -> Unit,
+    onCropInfoChange: (CropInfo) -> Unit = {}
+) {
+
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+        ) {
+            CropVideoPlayer(
+                videoUri = videoUri,
+                aspectRatioMode = AspectRatioMode.RATIO_193_89,
+                onCropInfoChange = onCropInfoChange
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+                .height(60.dp),
+        ) {
+            Button(
+                modifier = Modifier.align(Alignment.CenterStart),
+                onClick = { onSelectOtherVideo() }
+            ) {
+                Text("选择其他视频")
+            }
+
+            FloatingActionButton(
+                onClick = {
+                    onClickOpenSheet()
+                },
+                modifier = Modifier.align(Alignment.CenterEnd),
+            ) {
+                Icon(Icons.Default.Check, contentDescription = "确认")
+            }
+        }
+    }
+}
+
+@Composable
+fun RotatedBox(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Layout(
+        content = content,
+        modifier = modifier
+    ) { measurables, constraints ->
+        // 交换约束的宽高
+        val swappedConstraints = constraints.copy(
+            maxWidth = constraints.maxHeight,
+            maxHeight = constraints.maxWidth,
+            minWidth = if (constraints.hasFixedHeight) constraints.maxHeight else 0,
+            minHeight = if (constraints.hasFixedWidth) constraints.maxWidth else 0
+        )
+
+        val placeable = measurables.first().measure(swappedConstraints)
+
+        // 布局时也交换宽高
+        layout(placeable.height, placeable.width) {
+            placeable.place(
+                x = (placeable.height - placeable.width) / 2,
+                y = -(placeable.height - placeable.width) / 2,
+                zIndex = 0f
+            )
+        }
+    }
+}
+
 /**
  * 全屏裁剪预览
  * **/
+@SuppressLint("ConfigurationScreenWidthHeight")
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
-fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
+fun FullScreenPreview(verticalPickerInfo: VideoPickerInfo, horizontalPickerInfo: VideoPickerInfo) {
+    var isVertical by remember { mutableStateOf(true) }
+
     val context = LocalContext.current
-    // 跟踪视频是否已准备好
-    var videoReady by remember { mutableStateOf(false) }
+    val configuration = LocalConfiguration.current
+    val screenWidth = configuration.screenWidthDp
+    val screenHeight = configuration.screenHeightDp
 
-    // 创建并记住ExoPlayer实例
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(videoUri))
-            prepare()
-            playWhenReady = true
-            repeatMode = Player.REPEAT_MODE_ONE
+    Log.d("FullScreenPreview", "screenWidth: $screenWidth, screenHeight: $screenHeight")
 
-            // 监听视频尺寸变化
-            addListener(object : Player.Listener {
-                override fun onVideoSizeChanged(size: VideoSize) {
-                    videoReady = size.width > 0 && size.height > 0
-                }
-            })
+    //竖屏预览
+    Box(modifier = Modifier.fillMaxSize()) {
+
+        val videoUri = verticalPickerInfo.videoUri
+        val cropInfo = verticalPickerInfo.cropInfo
+        // 创建并记住ExoPlayer实例
+        val exoPlayer = remember {
+            ExoPlayer.Builder(context).build().apply {
+                setMediaItem(MediaItem.fromUri(videoUri))
+                prepare()
+                playWhenReady = true
+                repeatMode = Player.REPEAT_MODE_ONE
+            }
         }
-    }
 
-    // 当视频URI改变时重新加载视频并重置状态
-    LaunchedEffect(videoUri) {
-        videoReady = false
-        exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
-        exoPlayer.prepare()
-        exoPlayer.play()
-    }
-
-    // 组件销毁时释放ExoPlayer资源
-    DisposableEffect(Unit) {
-        onDispose {
-            exoPlayer.release()
+        // 当视频URI改变时重新加载视频并重置状态
+        LaunchedEffect(videoUri) {
+            exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
+            exoPlayer.prepare()
+            exoPlayer.play()
         }
-    }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black),
-    ) {
-        AndroidView(
-            factory = { context ->
-                TextureView(context).also {
-                    exoPlayer.setVideoTextureView(it)
+        // 组件销毁时释放ExoPlayer资源
+        DisposableEffect(Unit) {
+            onDispose {
+                exoPlayer.release()
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize(),
+        ) {
+            AndroidView(
+                factory = { context ->
+                    TextureView(context).also { textureView ->
+                        exoPlayer.setVideoTextureView(textureView)
+                        textureView.addOnLayoutChangeListener(object :
+                            View.OnLayoutChangeListener {
+                            override fun onLayoutChange(
+                                view: View, left: Int, top: Int, right: Int, bottom: Int,
+                                oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+                            ) {
+                                if (textureView.width > 0 && textureView.height > 0) {
+                                    val matrix = calculatePreviewMatrix(
+                                        textureView.width.toFloat(),
+                                        textureView.height.toFloat(),
+                                        cropInfo
+                                    )
+                                    textureView.setTransform(matrix)
+                                    textureView.removeOnLayoutChangeListener(this)
+                                }
+                            }
+                        })
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
+
+            Text(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(20.dp),
+                fontSize = 20.sp,
+                color = Color.White,
+                text = "竖屏预览中"
+            )
+        }
+
+        //横屏预览
+        if (!isVertical) {
+            val videoUri = horizontalPickerInfo.videoUri
+            val cropInfo = horizontalPickerInfo.cropInfo
+            // 创建并记住ExoPlayer实例
+            val exoPlayer = remember {
+                ExoPlayer.Builder(context).build().apply {
+                    setMediaItem(MediaItem.fromUri(videoUri))
+                    prepare()
+                    playWhenReady = true
+                    repeatMode = Player.REPEAT_MODE_ONE
                 }
-            },
-            update = { view ->
-                // 只有当视频准备好且view有尺寸时才应用变换
-                if (videoReady && view.width > 0 && view.height > 0) {
-                    val matrix = calculatePreviewMatrix(
-                        view.width.toFloat(),
-                        view.height.toFloat(),
-                        cropInfo
+            }
+
+            // 当视频URI改变时重新加载视频并重置状态
+            LaunchedEffect(videoUri) {
+                exoPlayer.setMediaItem(MediaItem.fromUri(videoUri))
+                exoPlayer.prepare()
+                exoPlayer.play()
+            }
+
+            // 组件销毁时释放ExoPlayer资源
+            DisposableEffect(Unit) {
+                onDispose {
+                    exoPlayer.release()
+                }
+            }
+
+            RotatedBox(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .rotate(90f)
+            ) {
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned {
+                            Log.d(
+                                "FullScreenPreview",
+                                "C onGloballyPositioned: width=${it.size.width} x height=${it.size.height}"
+                            )
+                        },
+                ) {
+                    AndroidView(
+                        factory = { context ->
+                            TextureView(context).also { textureView ->
+                                exoPlayer.setVideoTextureView(textureView)
+                                textureView.addOnLayoutChangeListener(object :
+                                    View.OnLayoutChangeListener {
+                                    override fun onLayoutChange(
+                                        view: View, left: Int, top: Int, right: Int, bottom: Int,
+                                        oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+                                    ) {
+                                        if (textureView.width > 0 && textureView.height > 0) {
+                                            Log.d(
+                                                "FullScreenPreview",
+                                                "TextureView: width=${textureView.width} x height=${textureView.height}"
+                                            )
+                                            val matrix = calculatePreviewMatrix(
+                                                textureView.width.toFloat(),
+                                                textureView.height.toFloat(),
+                                                cropInfo
+                                            )
+                                            textureView.setTransform(matrix)
+                                            textureView.removeOnLayoutChangeListener(this)
+                                        }
+                                    }
+                                })
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
                     )
 
-                    view.setTransform(matrix)
+                    Text(
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(20.dp),
+                        fontSize = 20.sp,
+                        color = Color.White,
+                        text = "横屏预览中"
+                    )
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
+            }
+        }
+
+        Button(modifier = Modifier.align(Alignment.BottomEnd), onClick = {
+            isVertical = !isVertical
+        }) {
+            Text(text = "切换")
+        }
     }
 }
 
@@ -304,8 +528,8 @@ fun FullScreenPreview(videoUri: Uri, cropInfo: CropInfo) {
  * **/
 @Composable
 fun HorizontalVerticalPreview(
-    horizontalInfo: VideoPickerInfo,
     verticalInfo: VideoPickerInfo,
+    horizontalInfo: VideoPickerInfo,
     onDismissRequest: () -> Unit,
     onClickLandscapeModeSettings: () -> Unit,
     onClickConfirm: () -> Unit
@@ -343,6 +567,7 @@ fun HorizontalVerticalPreview(
                     // 创建并记住ExoPlayer实例
                     val exoPlayer = remember {
                         ExoPlayer.Builder(context).build().apply {
+
                             setMediaItem(MediaItem.fromUri(videoUri))
                             prepare()
                             playWhenReady = true
@@ -366,19 +591,26 @@ fun HorizontalVerticalPreview(
 
                     AndroidView(
                         factory = { context ->
-                            TextureView(context).also {
-                                exoPlayer.setVideoTextureView(it)
+                            TextureView(context).also { textureView ->
+                                exoPlayer.setVideoTextureView(textureView)
+                                textureView.addOnLayoutChangeListener(object :
+                                    View.OnLayoutChangeListener {
+                                    override fun onLayoutChange(
+                                        view: View, left: Int, top: Int, right: Int, bottom: Int,
+                                        oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
+                                    ) {
+                                        if (textureView.width > 0 && textureView.height > 0) {
+                                            val matrix = calculatePreviewMatrix(
+                                                textureView.width.toFloat(),
+                                                textureView.height.toFloat(),
+                                                cropInfo
+                                            )
+                                            textureView.setTransform(matrix)
+                                            textureView.removeOnLayoutChangeListener(this)
+                                        }
+                                    }
+                                })
                             }
-                        },
-                        update = { view ->
-
-                            val matrix = calculatePreviewMatrix(
-                                view.width.toFloat(),
-                                view.height.toFloat(),
-                                cropInfo
-                            )
-
-                            view.setTransform(matrix)
                         },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -402,6 +634,7 @@ fun HorizontalVerticalPreview(
 
                     val videoUri = horizontalInfo.videoUri
                     val cropInfo = horizontalInfo.cropInfo
+
                     // 创建并记住ExoPlayer实例
                     val exoPlayer = remember {
                         ExoPlayer.Builder(context).build().apply {
@@ -433,18 +666,33 @@ fun HorizontalVerticalPreview(
                     ) {
                         AndroidView(
                             factory = { context ->
-                                TextureView(context).also {
-                                    exoPlayer.setVideoTextureView(it)
+                                TextureView(context).also { textureView ->
+                                    exoPlayer.setVideoTextureView(textureView)
+                                    textureView.addOnLayoutChangeListener(object :
+                                        View.OnLayoutChangeListener {
+                                        override fun onLayoutChange(
+                                            view: View,
+                                            left: Int,
+                                            top: Int,
+                                            right: Int,
+                                            bottom: Int,
+                                            oldLeft: Int,
+                                            oldTop: Int,
+                                            oldRight: Int,
+                                            oldBottom: Int
+                                        ) {
+                                            if (textureView.width > 0 && textureView.height > 0) {
+                                                val matrix = calculatePreviewMatrix(
+                                                    textureView.width.toFloat(),
+                                                    textureView.height.toFloat(),
+                                                    cropInfo
+                                                )
+                                                textureView.setTransform(matrix)
+                                                textureView.removeOnLayoutChangeListener(this)
+                                            }
+                                        }
+                                    })
                                 }
-                            },
-                            update = { view ->
-                                val matrix = calculatePreviewMatrix(
-                                    view.width.toFloat(),
-                                    view.height.toFloat(),
-                                    cropInfo
-                                )
-
-                                view.setTransform(matrix)
                             },
                             modifier = Modifier.fillMaxSize()
                         )
@@ -664,7 +912,6 @@ private fun calculateCropPreviewRect(
         (normalizedLeft + normalizedWidth) * videoSize.width,
         (normalizedTop + normalizedHeight) * videoSize.height
     )
-    Log.d("VideoPickerScreen", "previewRect: $previewRect")
     return CropInfo(previewRect, videoSize)
 }
 
