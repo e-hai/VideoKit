@@ -48,8 +48,10 @@ class EditorActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             VideoKitTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    VideoEditorScreen(modifier = Modifier.padding(innerPadding))
+                Box(modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White)) {
+                    VideoEditorScreen()
                 }
             }
         }

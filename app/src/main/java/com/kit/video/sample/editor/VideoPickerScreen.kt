@@ -98,13 +98,12 @@ data class CropInfo(
 
 @Composable
 fun VideoEditorScreen(
-    modifier: Modifier = Modifier,
 ) {
     var openFullScreen by remember { mutableStateOf(false) }
     var verticalPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
     var horizontalPickerInfo by remember { mutableStateOf<VideoPickerInfo?>(null) }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize()) {
         if (openFullScreen) {
             FullScreenPreview(verticalPickerInfo ?: return, horizontalPickerInfo ?: return)
         } else {
@@ -238,7 +237,7 @@ fun VerticalCropVideoPlayer(
         ) {
             CropVideoPlayer(
                 videoUri = videoUri,
-                aspectRatioMode = AspectRatioMode.RATIO_111_241,
+                aspectRatioMode = AspectRatioMode.VERTICAL_111_241,
                 onCropInfoChange = onCropInfoChange
             )
         }
@@ -284,7 +283,7 @@ fun HorizontalCropVideoPlayer(
         ) {
             CropVideoPlayer(
                 videoUri = videoUri,
-                aspectRatioMode = AspectRatioMode.RATIO_193_89,
+                aspectRatioMode = AspectRatioMode.HORIZONTAL_193_89,
                 onCropInfoChange = onCropInfoChange
             )
         }
@@ -354,11 +353,6 @@ fun FullScreenPreview(verticalPickerInfo: VideoPickerInfo, horizontalPickerInfo:
     var isVertical by remember { mutableStateOf(true) }
 
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
-    val screenWidth = configuration.screenWidthDp
-    val screenHeight = configuration.screenHeightDp
-
-    Log.d("FullScreenPreview", "screenWidth: $screenWidth, screenHeight: $screenHeight")
 
     //竖屏预览
     Box(modifier = Modifier.fillMaxSize()) {
@@ -404,7 +398,7 @@ fun FullScreenPreview(verticalPickerInfo: VideoPickerInfo, horizontalPickerInfo:
                                 oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
                             ) {
                                 if (textureView.width > 0 && textureView.height > 0) {
-                                    val matrix = calculatePreviewMatrix(
+                                    val matrix = computeTextureMatrix(
                                         textureView.width.toFloat(),
                                         textureView.height.toFloat(),
                                         cropInfo
@@ -457,21 +451,15 @@ fun FullScreenPreview(verticalPickerInfo: VideoPickerInfo, horizontalPickerInfo:
                 }
             }
 
+
             RotatedBox(
                 modifier = Modifier
                     .fillMaxSize()
                     .rotate(90f)
             ) {
-
                 Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .onGloballyPositioned {
-                            Log.d(
-                                "FullScreenPreview",
-                                "C onGloballyPositioned: width=${it.size.width} x height=${it.size.height}"
-                            )
-                        },
+                        .fillMaxSize(),
                 ) {
                     AndroidView(
                         factory = { context ->
@@ -484,11 +472,7 @@ fun FullScreenPreview(verticalPickerInfo: VideoPickerInfo, horizontalPickerInfo:
                                         oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
                                     ) {
                                         if (textureView.width > 0 && textureView.height > 0) {
-                                            Log.d(
-                                                "FullScreenPreview",
-                                                "TextureView: width=${textureView.width} x height=${textureView.height}"
-                                            )
-                                            val matrix = calculatePreviewMatrix(
+                                            val matrix = computeTextureMatrix(
                                                 textureView.width.toFloat(),
                                                 textureView.height.toFloat(),
                                                 cropInfo
@@ -515,7 +499,9 @@ fun FullScreenPreview(verticalPickerInfo: VideoPickerInfo, horizontalPickerInfo:
             }
         }
 
-        Button(modifier = Modifier.align(Alignment.BottomEnd), onClick = {
+        Button(modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(60.dp), onClick = {
             isVertical = !isVertical
         }) {
             Text(text = "切换")
@@ -600,7 +586,7 @@ fun HorizontalVerticalPreview(
                                         oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int
                                     ) {
                                         if (textureView.width > 0 && textureView.height > 0) {
-                                            val matrix = calculatePreviewMatrix(
+                                            val matrix = computeTextureMatrix(
                                                 textureView.width.toFloat(),
                                                 textureView.height.toFloat(),
                                                 cropInfo
@@ -682,7 +668,7 @@ fun HorizontalVerticalPreview(
                                             oldBottom: Int
                                         ) {
                                             if (textureView.width > 0 && textureView.height > 0) {
-                                                val matrix = calculatePreviewMatrix(
+                                                val matrix = computeTextureMatrix(
                                                     textureView.width.toFloat(),
                                                     textureView.height.toFloat(),
                                                     cropInfo
@@ -748,7 +734,7 @@ fun HorizontalVerticalPreview(
  * 计算裁剪参数
  * 将用户选择的裁剪区域转换为视频播放器的缩放和平移参数
  */
-fun calculatePreviewMatrix(
+fun computeTextureMatrix(
     viewWidth: Float,
     viewHeight: Float,
     cropInfo: CropInfo
@@ -809,8 +795,8 @@ enum class AspectRatioMode(val displayName: String, val ratio: Float?) {
 //    RATIO_4_3("4:3", 4f / 3f),
 //    RATIO_9_16("9:16", 9f / 16f),
 //    RATIO_16_9("16:9", 16f / 9f),
-    RATIO_111_241("111:241", 111f / 241f),
-    RATIO_193_89("193:89", 193f / 89f),
+    VERTICAL_111_241("111:241", 111f / 241f),
+    HORIZONTAL_193_89("193:89", 193f / 89f),
 }
 
 /**
@@ -1071,29 +1057,25 @@ fun SelectionOverlay(
 
                                 isDraggingRect -> {
                                     // 确保coerceIn的参数顺序正确，避免IllegalArgumentException
-                                    val maxLeft =
-                                        (videoBounds.right - cropRect.width).coerceAtLeast(
-                                            videoBounds.left
-                                        )
-                                    val maxTop =
-                                        (videoBounds.bottom - cropRect.height).coerceAtLeast(
-                                            videoBounds.top
-                                        )
+                                    val maxX = (videoBounds.right - cropRect.width).coerceAtLeast(
+                                        videoBounds.left
+                                    )
+                                    val maxY = (videoBounds.bottom - cropRect.height).coerceAtLeast(
+                                        videoBounds.top
+                                    )
 
-                                    val newLeft = (cropRect.left + dragAmount.x)
-                                        .coerceIn(
-                                            videoBounds.left,
-                                            maxLeft
-                                        )
-                                    val newTop = (cropRect.top + dragAmount.y)
-                                        .coerceIn(
-                                            videoBounds.top,
-                                            maxTop
-                                        )
+                                    val newX = (cropRect.left + dragAmount.x).coerceIn(
+                                        videoBounds.left,
+                                        maxX
+                                    )
+                                    val newY = (cropRect.top + dragAmount.y).coerceIn(
+                                        videoBounds.top,
+                                        maxY
+                                    )
                                     val newRect = Rect(
-                                        newLeft, newTop,
-                                        newLeft + cropRect.width,
-                                        newTop + cropRect.height
+                                        newX, newY,
+                                        newX + cropRect.width,
+                                        newY + cropRect.height
                                     )
 
                                     cropRect = newRect
@@ -1221,63 +1203,75 @@ fun getResizeHandle(offset: Offset, rect: Rect): ResizeHandle? {
 }
 
 fun resizeCropRect(
-    rect: Rect,
+    currentRect: Rect,
     handle: ResizeHandle,
-    dragAmount: Offset,
+    dragOffset: Offset,
     aspectRatioMode: AspectRatioMode,
     videoBounds: Rect
 ): Rect {
-    val minSize = 200f // 减小最小尺寸以避免约束问题
-    val ratio = aspectRatioMode.ratio
+    val minimumSize = 200f // 减小最小尺寸以避免约束问题
+    val aspectRatio = aspectRatioMode.ratio
 
     // ===== 自由模式 =====
-    if (ratio == null) {
+    if (aspectRatio == null) {
         return when (handle) {
             ResizeHandle.TOP_LEFT -> {
-                val maxLeft = (rect.right - minSize).coerceAtLeast(videoBounds.left)
-                val maxTop = (rect.bottom - minSize).coerceAtLeast(videoBounds.top)
+                val maxLeft = (currentRect.right - minimumSize).coerceAtLeast(videoBounds.left)
+                val maxTop = (currentRect.bottom - minimumSize).coerceAtLeast(videoBounds.top)
 
                 Rect(
-                    left = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft),
-                    top = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop),
-                    right = rect.right,
-                    bottom = rect.bottom
+                    left = (currentRect.left + dragOffset.x).coerceIn(videoBounds.left, maxLeft),
+                    top = (currentRect.top + dragOffset.y).coerceIn(videoBounds.top, maxTop),
+                    right = currentRect.right,
+                    bottom = currentRect.bottom
                 )
             }
 
             ResizeHandle.TOP_RIGHT -> {
-                val maxTop = (rect.bottom - minSize).coerceAtLeast(videoBounds.top)
-                val minRight = (rect.left + minSize).coerceAtMost(videoBounds.right)
+                val maxTop = (currentRect.bottom - minimumSize).coerceAtLeast(videoBounds.top)
+                val minRight = (currentRect.left + minimumSize).coerceAtMost(videoBounds.right)
 
                 Rect(
-                    left = rect.left,
-                    top = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop),
-                    right = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right),
-                    bottom = rect.bottom
+                    left = currentRect.left,
+                    top = (currentRect.top + dragOffset.y).coerceIn(videoBounds.top, maxTop),
+                    right = (currentRect.right + dragOffset.x).coerceIn(
+                        minRight,
+                        videoBounds.right
+                    ),
+                    bottom = currentRect.bottom
                 )
             }
 
             ResizeHandle.BOTTOM_LEFT -> {
-                val maxLeft = (rect.right - minSize).coerceAtLeast(videoBounds.left)
-                val minBottom = (rect.top + minSize).coerceAtMost(videoBounds.bottom)
+                val maxLeft = (currentRect.right - minimumSize).coerceAtLeast(videoBounds.left)
+                val minBottom = (currentRect.top + minimumSize).coerceAtMost(videoBounds.bottom)
 
                 Rect(
-                    left = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft),
-                    top = rect.top,
-                    right = rect.right,
-                    bottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
+                    left = (currentRect.left + dragOffset.x).coerceIn(videoBounds.left, maxLeft),
+                    top = currentRect.top,
+                    right = currentRect.right,
+                    bottom = (currentRect.bottom + dragOffset.y).coerceIn(
+                        minBottom,
+                        videoBounds.bottom
+                    )
                 )
             }
 
             ResizeHandle.BOTTOM_RIGHT -> {
-                val minRight = (rect.left + minSize).coerceAtMost(videoBounds.right)
-                val minBottom = (rect.top + minSize).coerceAtMost(videoBounds.bottom)
+                val minRight = (currentRect.left + minimumSize).coerceAtMost(videoBounds.right)
+                val minBottom = (currentRect.top + minimumSize).coerceAtMost(videoBounds.bottom)
 
                 Rect(
-                    left = rect.left,
-                    top = rect.top,
-                    right = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right),
-                    bottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
+                    left = currentRect.left,
+                    top = currentRect.top,
+                    right = (currentRect.right + dragOffset.x).coerceIn(
+                        minRight,
+                        videoBounds.right
+                    ),
+                    bottom = (currentRect.bottom + dragOffset.y).coerceIn(
+                        minBottom,
+                        videoBounds.bottom
+                    )
                 )
             }
         }
@@ -1286,107 +1280,109 @@ fun resizeCropRect(
     // ===== 固定比例模式 =====
     return when (handle) {
         ResizeHandle.TOP_LEFT -> {
-            val newRight = rect.right
-            val newBottom = rect.bottom
+            val fixedRight = currentRect.right
+            val fixedBottom = currentRect.bottom
 
             // 确保范围正确
-            val maxLeft = (newRight - minSize).coerceAtLeast(videoBounds.left)
-            val maxTop = (newBottom - minSize).coerceAtLeast(videoBounds.top)
+            val maxLeft = (fixedRight - minimumSize).coerceAtLeast(videoBounds.left)
+            val maxTop = (fixedBottom - minimumSize).coerceAtLeast(videoBounds.top)
 
-            var newLeft = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft)
-            var newTop = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop)
+            var newLeft = (currentRect.left + dragOffset.x).coerceIn(videoBounds.left, maxLeft)
+            var newTop = (currentRect.top + dragOffset.y).coerceIn(videoBounds.top, maxTop)
 
-            val width = newRight - newLeft
-            val height = width / ratio
+            val width = fixedRight - newLeft
+            val height = width / aspectRatio
 
-            if (newBottom - height < videoBounds.top) {
-                val heightAvailable = newBottom - videoBounds.top
-                val widthFixed = heightAvailable * ratio
-                newLeft = newRight - widthFixed
+            if (fixedBottom - height < videoBounds.top) {
+                val availableHeight = fixedBottom - videoBounds.top
+                val fixedWidth = availableHeight * aspectRatio
+                newLeft = fixedRight - fixedWidth
                 newTop = videoBounds.top
             } else {
-                newTop = newBottom - height
+                newTop = fixedBottom - height
             }
 
-            Rect(newLeft, newTop, newRight, newBottom)
+            Rect(newLeft, newTop, fixedRight, fixedBottom)
         }
 
         ResizeHandle.TOP_RIGHT -> {
-            val newLeft = rect.left
-            val newBottom = rect.bottom
+            val fixedLeft = currentRect.left
+            val fixedBottom = currentRect.bottom
 
             // 确保范围正确
-            val maxTop = (newBottom - minSize).coerceAtLeast(videoBounds.top)
-            val minRight = (newLeft + minSize).coerceAtMost(videoBounds.right)
+            val maxTop = (fixedBottom - minimumSize).coerceAtLeast(videoBounds.top)
+            val minRight = (fixedLeft + minimumSize).coerceAtMost(videoBounds.right)
 
-            var newRight = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right)
-            var newTop = (rect.top + dragAmount.y).coerceIn(videoBounds.top, maxTop)
+            var newRight = (currentRect.right + dragOffset.x).coerceIn(minRight, videoBounds.right)
+            var newTop = (currentRect.top + dragOffset.y).coerceIn(videoBounds.top, maxTop)
 
-            val width = newRight - newLeft
-            val height = width / ratio
+            val width = newRight - fixedLeft
+            val height = width / aspectRatio
 
-            if (newBottom - height < videoBounds.top) {
-                val heightAvailable = newBottom - videoBounds.top
-                val widthFixed = heightAvailable * ratio
-                newRight = newLeft + widthFixed
+            if (fixedBottom - height < videoBounds.top) {
+                val availableHeight = fixedBottom - videoBounds.top
+                val fixedWidth = availableHeight * aspectRatio
+                newRight = fixedLeft + fixedWidth
                 newTop = videoBounds.top
             } else {
-                newTop = newBottom - height
+                newTop = fixedBottom - height
             }
 
-            Rect(newLeft, newTop, newRight, newBottom)
+            Rect(fixedLeft, newTop, newRight, fixedBottom)
         }
 
         ResizeHandle.BOTTOM_LEFT -> {
-            val newRight = rect.right
-            val newTop = rect.top
+            val fixedRight = currentRect.right
+            val fixedTop = currentRect.top
 
             // 确保范围正确
-            val maxLeft = (newRight - minSize).coerceAtLeast(videoBounds.left)
-            val minBottom = (newTop + minSize).coerceAtMost(videoBounds.bottom)
+            val maxLeft = (fixedRight - minimumSize).coerceAtLeast(videoBounds.left)
+            val minBottom = (fixedTop + minimumSize).coerceAtMost(videoBounds.bottom)
 
-            var newLeft = (rect.left + dragAmount.x).coerceIn(videoBounds.left, maxLeft)
-            var newBottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
+            var newLeft = (currentRect.left + dragOffset.x).coerceIn(videoBounds.left, maxLeft)
+            var newBottom =
+                (currentRect.bottom + dragOffset.y).coerceIn(minBottom, videoBounds.bottom)
 
-            val width = newRight - newLeft
-            val height = width / ratio
+            val width = fixedRight - newLeft
+            val height = width / aspectRatio
 
-            if (newTop + height > videoBounds.bottom) {
-                val heightAvailable = videoBounds.bottom - newTop
-                val widthFixed = heightAvailable * ratio
-                newLeft = newRight - widthFixed
+            if (fixedTop + height > videoBounds.bottom) {
+                val availableHeight = videoBounds.bottom - fixedTop
+                val fixedWidth = availableHeight * aspectRatio
+                newLeft = fixedRight - fixedWidth
                 newBottom = videoBounds.bottom
             } else {
-                newBottom = newTop + height
+                newBottom = fixedTop + height
             }
 
-            Rect(newLeft, newTop, newRight, newBottom)
+            Rect(newLeft, fixedTop, fixedRight, newBottom)
         }
 
         ResizeHandle.BOTTOM_RIGHT -> {
-            val newLeft = rect.left
-            val newTop = rect.top
+            val fixedLeft = currentRect.left
+            val fixedTop = currentRect.top
 
             // 确保范围正确
-            val minRight = (newLeft + minSize).coerceAtMost(videoBounds.right)
-            val minBottom = (newTop + minSize).coerceAtMost(videoBounds.bottom)
+            val minRight = (fixedLeft + minimumSize).coerceAtMost(videoBounds.right)
+            val minBottom = (fixedTop + minimumSize).coerceAtMost(videoBounds.bottom)
 
-            var newRight = (rect.right + dragAmount.x).coerceIn(minRight, videoBounds.right)
-            var newBottom = (rect.bottom + dragAmount.y).coerceIn(minBottom, videoBounds.bottom)
+            var newRight = (currentRect.right + dragOffset.x).coerceIn(minRight, videoBounds.right)
+            var newBottom =
+                (currentRect.bottom + dragOffset.y).coerceIn(minBottom, videoBounds.bottom)
 
-            val width = newRight - newLeft
-            val height = width / ratio
+            val width = newRight - fixedLeft
+            val height = width / aspectRatio
 
-            if (newTop + height > videoBounds.bottom) {
-                val heightAvailable = videoBounds.bottom - newTop
-                val widthFixed = heightAvailable * ratio
-                newRight = newLeft + widthFixed
+            if (fixedTop + height > videoBounds.bottom) {
+                val availableHeight = videoBounds.bottom - fixedTop
+                val fixedWidth = availableHeight * aspectRatio
+                newRight = fixedLeft + fixedWidth
                 newBottom = videoBounds.bottom
             } else {
-                newBottom = newTop + height
+                newBottom = fixedTop + height
             }
 
-            Rect(newLeft, newTop, newRight, newBottom)
+            Rect(fixedLeft, fixedTop, newRight, newBottom)
         }
     }
 }
